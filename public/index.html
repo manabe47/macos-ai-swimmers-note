@@ -1,0 +1,2217 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>AI Swimmers Note Demo</title>
+    <style>
+      :root{
+        color-scheme: light;
+        --bg:#f4f7fb;
+        --surface:#ffffff;
+        --surface-alt:#edf3ff;
+        --border:#d8e1f0;
+        --text:#16233b;
+        --muted:#5f6f8a;
+        --primary:#1765ff;
+        --primary-strong:#0e4ec7;
+        --accent:#0f9d7a;
+        --danger:#d64545;
+        --shadow:0 18px 40px rgba(23, 46, 89, 0.08);
+        --radius:18px;
+      }
+      *{box-sizing:border-box}
+      body{
+        margin:0;
+        font-family:system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(23,101,255,0.12), transparent 30%),
+          linear-gradient(180deg, #f8fbff 0%, var(--bg) 45%, #eef3f9 100%);
+        color:var(--text);
+      }
+      button, input, select, textarea{font:inherit}
+      .shell{max-width:1280px;margin:0 auto;padding:32px 20px 56px}
+      .topbar{
+        display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:24px
+      }
+      .headline{max-width:720px}
+      .headline h1{margin:0;font-size:40px;line-height:1.05}
+      .headline p{margin:12px 0 0;color:var(--muted);font-size:15px;line-height:1.7}
+      .nav{
+        display:flex;gap:10px;flex-wrap:wrap;padding:8px;border:1px solid rgba(255,255,255,0.6);
+        border-radius:999px;background:rgba(255,255,255,0.72);backdrop-filter:blur(18px);box-shadow:var(--shadow)
+      }
+      .nav button,.ghost-btn,.primary-btn,.chip,.mini-btn{
+        border:0;border-radius:999px;cursor:pointer;transition:transform .15s ease, background .2s ease, color .2s ease
+      }
+      .nav button{padding:12px 18px;background:transparent;color:var(--muted);font-weight:700}
+      .nav button.active{background:var(--text);color:#fff}
+      .stats{
+        display:grid;grid-template-columns:repeat(2, minmax(0,1fr));gap:14px;margin-bottom:22px
+      }
+      .stat,.card{
+        background:rgba(255,255,255,0.86);border:1px solid rgba(255,255,255,0.75);
+        border-radius:var(--radius);box-shadow:var(--shadow)
+      }
+      .stat{padding:18px}
+      .stat-label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+      .stat-value{font-size:28px;font-weight:800}
+      .stat-sub{color:var(--muted);font-size:13px;margin-top:6px}
+      .dashboard-stack,.practice-layout,.athlete-layout{
+        display:grid;gap:18px
+      }
+      .ai-layout{
+        display:grid;grid-template-columns:minmax(0, 1.35fr) minmax(360px, .95fr);gap:18px;align-items:start
+      }
+      .settings-layout{display:grid;gap:18px}
+      .card{padding:22px}
+      .section-head{
+        display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px
+      }
+      .section-head h2,.section-head h3,.section-head h4{margin:0}
+      .section-head p,.muted{margin:6px 0 0;color:var(--muted);font-size:14px;line-height:1.6}
+      .primary-btn{padding:12px 18px;background:var(--primary);color:#fff;font-weight:700}
+      .primary-btn:hover{background:var(--primary-strong);transform:translateY(-1px)}
+      .ghost-btn{padding:11px 16px;background:#eff4ff;color:var(--primary);font-weight:700}
+      .ghost-btn:hover{background:#e2ebff}
+      .mini-btn{padding:8px 12px;background:#eef3ff;color:var(--primary);font-weight:700}
+      .stack{display:grid;gap:14px}
+      .form-grid{display:grid;grid-template-columns:repeat(2, minmax(0,1fr));gap:12px}
+      .form-row{display:grid;gap:8px}
+      .form-row label{font-size:13px;font-weight:700;color:var(--muted)}
+      input, select, textarea{
+        width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--border);background:#fff;color:var(--text);
+        outline:none
+      }
+      input:focus, select:focus, textarea:focus{border-color:#8eb4ff;box-shadow:0 0 0 4px rgba(23,101,255,0.12)}
+      .practice-list{display:grid;gap:10px;margin-top:14px;overflow-x:auto}
+      .practice-item{
+        display:grid;grid-template-columns:150px 110px 110px 110px 120px 120px minmax(260px,1fr) 96px;
+        gap:10px;padding:14px;min-width:1180px;align-items:center;
+        border:1px solid var(--border);border-radius:16px;background:#fbfdff
+      }
+      .practice-item.dragging{
+        opacity:.45;border-color:#8eb4ff;background:#f4f8ff;
+        box-shadow:0 12px 24px rgba(23,101,255,0.14)
+      }
+      .sub-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,.9fr);gap:18px}
+      .event-history-list{display:grid;gap:10px}
+      .event-history-item{
+        display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;padding:12px;border:1px solid var(--border);
+        border-radius:16px;background:#fbfdff
+      }
+      .best-times-list{display:grid;gap:8px;margin-top:12px}
+      .best-time-row{
+        display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;
+        background:#f7faff;border:1px solid #e0e9f8;font-size:13px
+      }
+      .best-time-row.active{border-color:#8eb4ff;box-shadow:0 0 0 3px rgba(23,101,255,0.12)}
+      .athlete-detail-card{display:grid;gap:14px}
+      .chart-shell{padding:14px;border-radius:16px;background:#f7faff;border:1px solid #e0e9f8}
+      .chart-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+      .chart-legend{display:flex;gap:8px;flex-wrap:wrap}
+      .legend-pill{padding:6px 10px;border-radius:999px;background:#e7efff;font-size:12px;font-weight:700}
+      .trend-grid{display:grid;gap:8px;margin-top:12px}
+      .trend-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:#fff;border:1px solid #dde7f7;font-size:13px}
+      .trend-up{color:var(--accent);font-weight:700}
+      .tag-row,.chips{display:flex;gap:8px;flex-wrap:wrap}
+      .chip{padding:8px 12px;background:#edf3ff;color:var(--primary);font-size:13px;font-weight:700}
+      .chip.active{background:var(--primary);color:#fff}
+      .chip.dim{background:#f1f4f8;color:var(--muted)}
+      .athlete-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+      .athlete-card{
+        padding:16px;border-radius:18px;border:1px solid var(--border);background:#fff;cursor:pointer;
+        transition:transform .15s ease, box-shadow .2s ease, border-color .2s ease
+      }
+      .team-card{
+        min-height:84px;display:grid;place-items:center;text-align:center;background:#f8fbff
+      }
+      .team-card .athlete-name{margin:0;font-size:26px}
+      .athlete-card:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+      .athlete-card.active{border-color:#92b4ff;box-shadow:0 0 0 4px rgba(23,101,255,0.1)}
+      .team-card.active{
+        background:linear-gradient(135deg, var(--primary) 0%, var(--primary-strong) 100%);
+        border-color:transparent;
+        box-shadow:0 18px 38px rgba(23,101,255,0.28)
+      }
+      .team-card.active .athlete-name{color:#fff}
+      .athlete-name{font-size:18px;font-weight:800;margin:0 0 6px}
+      .meta-line{color:var(--muted);font-size:13px;line-height:1.6}
+      .list-block{display:grid;gap:12px}
+      .practice-card{
+        padding:16px;border-radius:16px;border:1px solid var(--border);background:#fff
+      }
+      .practice-card.active{border-color:#92b4ff;box-shadow:0 0 0 4px rgba(23,101,255,0.1)}
+      .practice-card-head{
+        display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px
+      }
+      .practice-card-actions{display:flex;gap:8px;flex-wrap:wrap}
+      .practice-scroll{
+        max-height:calc(100vh - 240px);overflow:auto;padding-right:4px
+      }
+      .ai-sidebar,.ai-main{
+        min-height:calc(100vh - 180px)
+      }
+      .ai-main{
+        display:grid;gap:18px
+      }
+      .ai-main-stack{
+        display:grid;gap:18px
+      }
+      .ai-left-stack{
+        display:grid;gap:18px
+      }
+      .ai-sidebar .practice-scroll,
+      .ai-main .practice-scroll{
+        max-height:calc(100vh - 260px)
+      }
+      .ai-practice-list{
+        display:grid;gap:8px
+      }
+      .ai-practice-card{
+        display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;
+        padding:10px 12px;border-radius:14px;border:1px solid var(--border);background:#fff;cursor:pointer;
+        transition:transform .15s ease, box-shadow .2s ease, border-color .2s ease
+      }
+      .ai-practice-card:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
+      .ai-practice-card.active{border-color:#92b4ff;box-shadow:0 0 0 4px rgba(23,101,255,0.1)}
+      .ai-practice-card strong{display:block;margin-bottom:2px;font-size:14px;line-height:1.35}
+      .ai-practice-card .meta-line{font-size:12px;line-height:1.4}
+      .ai-practice-meta{display:flex;justify-content:flex-end;align-items:center;gap:10px;min-width:0;color:var(--muted);font-size:12px;white-space:nowrap}
+      .ai-selector-card{
+        padding:16px
+      }
+      .ai-selector-card .section-head{
+        margin-bottom:10px
+      }
+      .ai-selector-card .practice-scroll{
+        max-height:180px
+      }
+      .ai-help-chip-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+      .ai-help-chip{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;border:1px solid #d7e4fb;background:#f4f8ff;color:var(--primary);font-size:13px;font-weight:700;cursor:pointer}
+      .ai-help-chip:hover{background:#e9f1ff}
+      .ai-setup-banner{display:grid;gap:10px;margin-bottom:18px}
+      .ai-editor-card .practice-list{
+        margin-top:0
+      }
+      .ai-editor-card .section-head{
+        margin-bottom:12px
+      }
+      .ai-editor-card input,
+      .ai-editor-card select{
+        padding:10px 12px;border-radius:12px
+      }
+      .ai-editor-meta{
+        display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap
+      }
+      .ai-team-grid{
+        display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px
+      }
+      .ai-team-chip{
+        min-height:52px;padding:10px 8px;border-radius:14px;font-size:13px
+      }
+      .ai-team-chip .athlete-name{
+        font-size:16px
+      }
+      .ai-editor-card .practice-item{
+        grid-template-columns:96px 72px 72px 78px 78px 92px minmax(120px,1fr) 82px;
+        gap:6px;padding:8px 10px;min-width:720px;font-size:12px
+      }
+      .ai-chat-card{
+        display:grid;grid-template-rows:auto minmax(0,1fr) auto;
+        min-height:calc(100vh - 180px)
+      }
+      .ai-chat-card .section-head{
+        margin-bottom:12px
+      }
+      .ai-chat-pane{
+        overflow:auto;padding-right:4px;min-height:280px
+      }
+      .chat-thread{display:grid;gap:12px}
+      .chat-bubble{
+        max-width:min(820px, 92%);padding:14px 16px;border-radius:18px;white-space:pre-wrap;line-height:1.7
+      }
+      .chat-bubble .markdown{
+        white-space:normal;font-size:14px;line-height:1.7
+      }
+      .chat-bubble .markdown > :first-child{margin-top:0}
+      .chat-bubble .markdown > :last-child{margin-bottom:0}
+      .chat-bubble .markdown h1,
+      .chat-bubble .markdown h2,
+      .chat-bubble .markdown h3,
+      .chat-bubble .markdown h4{
+        margin:0 0 8px;font-size:15px;line-height:1.4
+      }
+      .chat-bubble .markdown p{margin:0 0 10px}
+      .chat-bubble .markdown ul,
+      .chat-bubble .markdown ol{margin:0 0 10px;padding-left:20px}
+      .chat-bubble .markdown li{margin:0 0 4px}
+      .chat-bubble .markdown code{
+        padding:2px 6px;border-radius:8px;background:rgba(12,24,48,0.08);font-family:ui-monospace,SFMono-Regular,Menlo,monospace
+      }
+      .chat-bubble .markdown pre{
+        margin:0 0 10px;padding:12px;border-radius:12px;background:rgba(12,24,48,0.08);overflow:auto
+      }
+      .chat-bubble .markdown pre code{
+        padding:0;background:transparent
+      }
+      .chat-bubble .markdown blockquote{
+        margin:0 0 10px;padding:8px 12px;border-left:3px solid rgba(23,101,255,0.35);background:rgba(23,101,255,0.05)
+      }
+      .chat-bubble .markdown table{
+        width:100%;border-collapse:collapse;margin:0 0 10px;font-size:13px
+      }
+      .chat-bubble .markdown th,
+      .chat-bubble .markdown td{
+        border:1px solid rgba(12,24,48,0.12);padding:6px 8px;text-align:left;vertical-align:top
+      }
+      .chat-bubble.coach .markdown code,
+      .chat-bubble.coach .markdown pre{
+        background:rgba(255,255,255,0.15)
+      }
+      .chat-bubble.assistant{
+        justify-self:start;background:#f7faff;border:1px solid #dfe8f8;color:var(--text)
+      }
+      .chat-bubble.coach{
+        justify-self:end;background:linear-gradient(135deg, var(--primary) 0%, var(--primary-strong) 100%);
+        color:#fff;box-shadow:0 14px 28px rgba(23,101,255,0.2)
+      }
+      .chat-role{display:block;margin-bottom:8px;font-size:12px;font-weight:800;opacity:.72}
+      .chat-input-shell{
+        display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:end;
+        padding-top:12px;border-top:1px solid #e0e9f8;background:rgba(255,255,255,0.95)
+      }
+      .chat-input-shell textarea{min-height:120px;resize:vertical}
+      .ai-chat-pane{
+        max-height:calc(100vh - 390px);min-height:240px;overflow:auto;padding-right:4px
+      }
+      .practice-table-wrap{
+        margin-top:12px;border-radius:14px;border:1px solid #e0e9f8;background:#f7faff;overflow:auto
+      }
+      .practice-table{
+        width:100%;border-collapse:collapse;font-size:12px;min-width:420px
+      }
+      .practice-table th,.practice-table td{
+        padding:8px 10px;border-bottom:1px solid #e0e9f8;text-align:left;white-space:nowrap
+      }
+      .practice-table th{color:var(--muted);font-weight:700;background:#eef4ff}
+      .practice-table tr:last-child td{border-bottom:0}
+      .practice-card pre,.result-box{
+        margin:12px 0 0;padding:14px;border-radius:14px;background:#f7faff;border:1px solid #e0e9f8;
+        white-space:pre-wrap;color:var(--text)
+      }
+      .result-box{min-height:220px}
+      .inline-actions{display:flex;gap:10px;flex-wrap:wrap}
+      .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+      .empty{
+        padding:28px;border:1px dashed #c9d6ee;border-radius:18px;background:rgba(255,255,255,0.5);color:var(--muted);text-align:center
+      }
+      .footer-note{font-size:12px;color:var(--muted)}
+      .column-order-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+      .column-order-item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:#fbfdff}
+      .column-order-item.dragging{opacity:.5;border-color:#8eb4ff;background:#f4f8ff;box-shadow:0 12px 24px rgba(23,101,255,0.14)}
+      .column-order-label{font-size:14px;font-weight:700}
+      .secret-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+      .status-pill{
+        display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;
+        background:#edf3ff;color:var(--primary);font-size:13px;font-weight:700
+      }
+      .status-table{
+        display:grid;grid-template-columns:180px minmax(0,1fr);margin-bottom:16px;
+        border:1px solid #dfe8f8;border-radius:16px;overflow:hidden;background:#f7faff
+      }
+      .status-label,.status-value{
+        padding:12px 14px;border-bottom:1px solid #dfe8f8;font-size:14px
+      }
+      .status-label{
+        background:#eef4ff;color:var(--muted);font-weight:700
+      }
+      .status-value{
+        background:#fff;color:var(--text);font-weight:700
+      }
+      .status-table > :nth-last-child(-n + 2){border-bottom:0}
+      .help-card{
+        padding:16px;border-radius:16px;background:#f7faff;border:1px solid #dfe8f8
+      }
+      .help-card summary{cursor:pointer;font-weight:800;color:var(--text)}
+      .help-card summary::-webkit-details-marker{display:none}
+      .help-card ol,.help-card ul{margin:12px 0 0;padding-left:20px;color:var(--muted);line-height:1.8}
+      .item-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end}
+      .icon-btn{
+        width:40px;height:40px;padding:0;display:inline-flex;align-items:center;justify-content:center;
+        border:1px solid var(--border);border-radius:12px;background:#fff;color:var(--muted);cursor:pointer
+      }
+      .icon-btn:hover{background:#f5f8ff;color:var(--primary)}
+      .icon-btn.danger:hover{color:var(--danger);background:#fff4f4}
+      .drag-handle{cursor:grab}
+      .drag-handle:active{cursor:grabbing}
+      .drag-handle svg,.icon-btn svg{width:18px;height:18px}
+      .spinner{
+        width:18px;height:18px;border:2px solid rgba(23,101,255,0.2);border-top-color:var(--primary);
+        border-radius:50%;animation:spin .8s linear infinite
+      }
+      .loading-row{display:flex;align-items:center;gap:10px;color:var(--primary);font-weight:700}
+      @keyframes spin{to{transform:rotate(360deg)}}
+      @media (max-width: 980px){
+        .practice-layout,.athlete-layout,.ai-layout,.sub-grid,.stats,.form-grid{grid-template-columns:1fr}
+        .headline h1{font-size:32px}
+        .ai-sidebar,.ai-main,.ai-chat-card{min-height:auto}
+      }
+      @media (max-width: 860px){
+        .event-history-item{grid-template-columns:1fr 1fr}
+      }
+      @media (max-width: 640px){
+        .shell{padding:20px 14px 40px}
+        .topbar{flex-direction:column}
+        .nav{width:100%}
+        .nav button{flex:1}
+        .event-history-item{grid-template-columns:1fr}
+        .status-table{grid-template-columns:1fr}
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app" class="shell"></div>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script>
+      const { createApp, ref, reactive, onMounted, computed, watch, nextTick } = Vue;
+
+      const GROUP_OPTIONS = ['A', 'B', 'C', 'D', '育成', '選抜'];
+      const ITEM_TYPES = ['Warmup', 'Drill', 'Kick', 'Pull', 'Swim', 'Main', 'CoolDown'];
+      const EVENT_OPTIONS = [
+        '50 Free', '100 Free', '200 Free', '400 Free', '800 Free', '1500 Free',
+        '50 Back', '100 Back', '200 Back',
+        '50 Breast', '100 Breast', '200 Breast',
+        '50 Fly', '100 Fly', '200 Fly',
+        '200 IM', '400 IM'
+      ];
+      const STROKE_OPTIONS = ['Fr', 'Ba', 'Br', 'Fly', 'IM', 'Choice'];
+      const DISTANCE_OPTIONS = Array.from({ length: 64 }, (_, index) => (index + 1) * 25);
+      const REPS_OPTIONS = Array.from({ length: 20 }, (_, index) => index + 1);
+      const CYCLE_OPTIONS = Array.from({ length: 121 }, (_, index) => {
+        const totalSeconds = index * 5;
+        const minutes = String(Math.floor(totalSeconds / 60));
+        const seconds = String(totalSeconds % 60).padStart(2, '0');
+        return `${minutes}:${seconds}`;
+      });
+      const DEFAULT_MENU_COLUMN_ORDER = ['type', 'stroke', 'distance', 'sets', 'reps', 'rest', 'note'];
+      const MENU_COLUMN_DEFS = [
+        { key: 'type', label: '種別' },
+        { key: 'stroke', label: '種目' },
+        { key: 'distance', label: '距離' },
+        { key: 'sets', label: 'セット数' },
+        { key: 'reps', label: '本数' },
+        { key: 'rest', label: 'cycle' },
+        { key: 'note', label: '備考' }
+      ];
+      const API_BASE = (() => {
+        if (window.location.protocol !== 'file:') return '';
+        const saved = window.localStorage.getItem('ai_swimmers_api_base');
+        return saved ? String(saved).trim().replace(/\/$/, '') : 'http://localhost:3002';
+      })();
+      const CHART_COLORS = ['#1765ff', '#0f9d7a', '#ff8a00', '#7b61ff', '#e34c67'];
+
+      createApp({
+        setup(){
+          const title = ref('');
+          const athleteList = ref([]);
+          const selectedTeams = ref([]);
+          const athletePage = ref(null);
+          const athleteEditorCard = ref(null);
+          const practiceEditorCard = ref(null);
+          const editingPracticeId = ref(null);
+          const selectedBestEvent = ref('');
+          const chatInput = ref('');
+          const practiceItems = ref([
+            { type: 'Warmup', stroke: 'Fr', distance: 200, sets: 1, reps: 1, rest: '', note: '' }
+          ]);
+          const practiceList = ref([]);
+          const currentPractice = ref(null);
+          const created = ref('');
+          const generationMessage = ref('');
+          const isGenerating = ref(false);
+          const draggedPracticeItemIndex = ref(null);
+          const draggedMenuColumnKey = ref(null);
+          let dragPreviewElement = null;
+          const practiceId = ref('');
+          const view = ref('dashboard');
+          const groupFilter = ref('all');
+          const settingsMessage = ref('');
+          const aiSettings = reactive({
+            provider: 'ollama',
+            ollamaBaseUrl: 'http://localhost:11434/v1/chat/completions',
+            ollamaModel: 'gemma4:26b',
+            openaiApiKey: '',
+            openaiApiKeyMasked: '',
+            hasOpenAIApiKey: false,
+            openaiModel: 'gpt-4.1-mini',
+            openaiBaseUrl: 'https://api.openai.com/v1/chat/completions',
+            geminiApiKey: '',
+            geminiApiKeyMasked: '',
+            hasGeminiApiKey: false,
+            geminiModel: 'gemini-2.5-flash',
+            geminiBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/models',
+            menuColumnOrder: [...DEFAULT_MENU_COLUMN_ORDER]
+          });
+          const athleteForm = reactive({ id: null, name: '', primary_event: '100 Free', group_name: 'A', athlete_events: [{ event: '100 Free', meet: '', date: '', time: '' }] });
+
+          const allGroups = computed(() => {
+            const groups = new Set(GROUP_OPTIONS);
+            for (const athlete of athleteList.value) {
+              if (athlete.group_name) groups.add(athlete.group_name);
+            }
+            return ['all', ...Array.from(groups)];
+          });
+
+          const groupedAthletes = computed(() => athleteList.value.reduce((acc, athlete) => {
+            const key = athlete.group_name || '未設定';
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(athlete);
+            return acc;
+          }, {}));
+
+          const filteredAthletes = computed(() => {
+            if (groupFilter.value === 'all') return athleteList.value;
+            return athleteList.value.filter((athlete) => (athlete.group_name || '未設定') === groupFilter.value);
+          });
+
+          const needsAISetup = computed(() => {
+            if (aiSettings.provider === 'openai') return !aiSettings.hasOpenAIApiKey;
+            if (aiSettings.provider === 'gemini') return !aiSettings.hasGeminiApiKey;
+            return false;
+          });
+
+          function normalizeMenuColumnOrder(order){
+            const source = Array.isArray(order) ? order.map((value) => String(value)) : [];
+            const valid = DEFAULT_MENU_COLUMN_ORDER.filter((key) => source.includes(key));
+            const missing = DEFAULT_MENU_COLUMN_ORDER.filter((key) => !valid.includes(key));
+            return [...valid, ...missing];
+          }
+
+          const orderedMenuColumns = computed(() => normalizeMenuColumnOrder(aiSettings.menuColumnOrder)
+            .map((key) => MENU_COLUMN_DEFS.find((column) => column.key === key))
+            .filter(Boolean));
+
+          function moveMenuColumnKey(fromKey, toKey){
+            const nextOrder = normalizeMenuColumnOrder(aiSettings.menuColumnOrder);
+            const fromIndex = nextOrder.indexOf(fromKey);
+            const toIndex = nextOrder.indexOf(toKey);
+            if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
+            const [moved] = nextOrder.splice(fromIndex, 1);
+            nextOrder.splice(toIndex, 0, moved);
+            aiSettings.menuColumnOrder = nextOrder;
+          }
+
+          const teamList = computed(() => Object.entries(groupedAthletes.value).map(([name, athletes]) => ({
+            name,
+            athletes,
+            count: athletes.length
+          })));
+          const currentAthlete = computed(() => athletePage.value && athletePage.value.athlete ? athletePage.value.athlete : null);
+          const displayedPractices = computed(() => practiceList.value.slice(0, 20));
+
+          const currentAthleteTrendRows = computed(() => {
+            if (!currentAthlete.value || !Array.isArray(currentAthlete.value.athlete_events)) return [];
+            const grouped = {};
+            for (const entry of currentAthlete.value.athlete_events) {
+              if (!entry.event || !entry.time) continue;
+              if (selectedBestEvent.value && entry.event !== selectedBestEvent.value) continue;
+              if (!grouped[entry.event]) grouped[entry.event] = [];
+              grouped[entry.event].push(entry);
+            }
+            return Object.entries(grouped).map(([event, entries]) => {
+              const sorted = entries.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+              const first = sorted[0];
+              const last = sorted[sorted.length - 1];
+              const improvement = timeToSeconds(first.time) - timeToSeconds(last.time);
+              return {
+                event,
+                firstTime: first.time,
+                latestTime: last.time,
+                improvement,
+                label: improvement > 0 ? `-${formatDelta(improvement)}` : improvement < 0 ? `+${formatDelta(Math.abs(improvement))}` : `±${formatDelta(0)}`
+              };
+            }).sort((a, b) => b.improvement - a.improvement);
+          });
+          const currentAthleteChart = computed(() => buildAthleteChart(currentAthlete.value && currentAthlete.value.athlete_events ? currentAthlete.value.athlete_events : [], selectedBestEvent.value));
+
+          function formatGroupLabel(group){
+            return group === 'all' ? 'すべて' : group;
+          }
+
+          function parseSwimTime(value){
+            if (value == null) return null;
+            const text = String(value).trim();
+            if (!text) return null;
+            if (/^\d+$/.test(text)) {
+              const padded = text.padStart(6, '0').slice(-6);
+              const minutes = Number(padded.slice(0, 2));
+              const seconds = Number(padded.slice(2, 4));
+              const centiseconds = Number(padded.slice(4, 6));
+              return minutes * 60 + seconds + centiseconds / 100;
+            }
+            const quotedMatch = text.match(/^(?:(\d+)')?(\d{1,2})"(?:([0-9]{1,2}))?$/);
+            if (quotedMatch) {
+              const minutes = Number(quotedMatch[1] || '0');
+              const seconds = Number(quotedMatch[2] || '0');
+              const centiseconds = Number(String(quotedMatch[3] || '0').padEnd(2, '0').slice(0, 2));
+              return minutes * 60 + seconds + centiseconds / 100;
+            }
+            const normalized = text.replace(/"/g, '.').replace(/'/g, ':');
+            const parts = normalized.split(':');
+            if (parts.length === 1) {
+              const total = Number(parts[0]);
+              return Number.isFinite(total) ? total : null;
+            }
+            if (parts.length === 2) {
+              const minutes = Number(parts[0]);
+              const seconds = Number(parts[1]);
+              const total = minutes * 60 + seconds;
+              return Number.isFinite(total) ? total : null;
+            }
+            if (parts.length === 3) {
+              const minutes = Number(parts[0]);
+              const seconds = Number(parts[1]);
+              const centiseconds = Number(parts[2]);
+              const total = minutes * 60 + seconds + centiseconds / 100;
+              return Number.isFinite(total) ? total : null;
+            }
+            return null;
+          }
+
+          function timeToSeconds(value){
+            const parsed = parseSwimTime(value);
+            return parsed == null ? NaN : parsed;
+          }
+
+          function formatSwimTime(value){
+            const seconds = typeof value === 'number' ? value : parseSwimTime(value);
+            if (!Number.isFinite(seconds)) return value ? String(value) : '';
+            const totalCentiseconds = Math.round(seconds * 100);
+            const minutes = Math.floor(totalCentiseconds / 6000);
+            const secondsPart = Math.floor((totalCentiseconds % 6000) / 100);
+            const centiseconds = totalCentiseconds % 100;
+            return `${String(minutes).padStart(2, '0')}'${String(secondsPart).padStart(2, '0')}"${String(centiseconds).padStart(2, '0')}`;
+          }
+
+          function formatDelta(value){
+            if (!Number.isFinite(value)) return `0'00"00`;
+            return formatSwimTime(Math.abs(value));
+          }
+
+          function normalizeEventTime(index){
+            if (!athleteForm.athlete_events[index]) return;
+            athleteForm.athlete_events[index].time = formatSwimTime(athleteForm.athlete_events[index].time);
+          }
+
+          async function scrollToAthleteEditor(){
+            await nextTick();
+            if (!athleteEditorCard.value) return;
+            athleteEditorCard.value.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+
+          async function scrollToPracticeEditor(){
+            await nextTick();
+            if (!practiceEditorCard.value) return;
+            practiceEditorCard.value.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+
+          function buildAthleteChart(events, selectedEvent){
+            const validEvents = (events || []).filter((entry) => entry && entry.event && entry.time && entry.date && (!selectedEvent || entry.event === selectedEvent));
+            const grouped = {};
+            for (const entry of validEvents) {
+              if (!grouped[entry.event]) grouped[entry.event] = [];
+              grouped[entry.event].push(entry);
+            }
+            const series = Object.entries(grouped)
+              .map(([event, entries], index) => ({
+                event,
+                color: CHART_COLORS[index % CHART_COLORS.length],
+                points: entries
+                  .slice()
+                  .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+                  .map((entry) => ({ ...entry, seconds: timeToSeconds(entry.time) }))
+                  .filter((entry) => Number.isFinite(entry.seconds))
+              }))
+              .filter((seriesItem) => seriesItem.points.length >= 2);
+            if (series.length === 0) return null;
+            const allPoints = series.flatMap((seriesItem) => seriesItem.points);
+            const minTime = Math.min(...allPoints.map((point) => point.seconds));
+            const maxTime = Math.max(...allPoints.map((point) => point.seconds));
+            const minDate = new Date(Math.min(...allPoints.map((point) => new Date(point.date).getTime())));
+            const maxDate = new Date(Math.max(...allPoints.map((point) => new Date(point.date).getTime())));
+            const width = 620;
+            const height = 240;
+            const padding = 28;
+            const chartWidth = width - padding * 2;
+            const chartHeight = height - padding * 2;
+            const dateRange = Math.max(maxDate.getTime() - minDate.getTime(), 1);
+            const timeRange = Math.max(maxTime - minTime, 0.01);
+            return {
+              width,
+              height,
+              series: series.map((seriesItem) => ({
+                ...seriesItem,
+                path: seriesItem.points.map((point, index) => {
+                  const x = padding + ((new Date(point.date).getTime() - minDate.getTime()) / dateRange) * chartWidth;
+                  const y = padding + ((point.seconds - minTime) / timeRange) * chartHeight;
+                  return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+                }).join(' ')
+              })),
+              yLabels: [minTime, (minTime + maxTime) / 2, maxTime].map((value) => ({
+                value,
+                label: formatSwimTime(value),
+                y: padding + ((value - minTime) / timeRange) * chartHeight
+              })),
+              xLabels: [minDate, maxDate].map((date) => ({
+                label: `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`,
+                x: padding + ((date.getTime() - minDate.getTime()) / dateRange) * chartWidth
+              }))
+            };
+          }
+
+          function syncViewFromHash(){
+            const hash = window.location.hash.replace('#', '');
+            if (!hash || hash === 'dashboard') {
+              view.value = 'dashboard';
+              return;
+            }
+            if (hash === 'athletes') {
+              view.value = 'athletes';
+              return;
+            }
+            if (hash === 'display-settings') {
+              view.value = 'display-settings';
+              return;
+            }
+            if (hash === 'practices') {
+              view.value = 'practices';
+              return;
+            }
+            if (hash === 'ai') {
+              view.value = 'ai';
+              return;
+            }
+            if (hash === 'settings') {
+              view.value = 'settings';
+              return;
+            }
+            if (hash.startsWith('athlete-')) {
+              const id = Number(hash.replace('athlete-', ''));
+              if (id) openAthletePage(id, false);
+              else view.value = 'athletes';
+              return;
+            }
+            if (hash.startsWith('practice-')) {
+              const id = Number(hash.replace('practice-', ''));
+              if (id) openPracticePage(id, false);
+              else view.value = 'practices';
+            }
+          }
+
+          function setView(nextView){
+            if (nextView === 'dashboard') {
+              view.value = 'dashboard';
+              window.location.hash = 'dashboard';
+              return;
+            }
+            if (nextView === 'settings') {
+              view.value = 'settings';
+              window.location.hash = 'settings';
+              return;
+            }
+            if (nextView === 'display-settings') {
+              view.value = 'display-settings';
+              window.location.hash = 'display-settings';
+              return;
+            }
+            if (nextView === 'ai') {
+              view.value = 'ai';
+              if (currentPractice.value && currentPractice.value.id) {
+                window.location.hash = 'ai';
+              } else {
+                window.location.hash = 'ai';
+              }
+              return;
+            }
+            if (nextView === 'practices') {
+              view.value = 'practices';
+              if (currentPractice.value && currentPractice.value.id) {
+                window.location.hash = 'practice-' + currentPractice.value.id;
+              } else {
+                window.location.hash = 'practices';
+              }
+              return;
+            }
+            view.value = 'athletes';
+            if (athletePage.value && athletePage.value.athlete && athletePage.value.athlete.id) {
+              window.location.hash = 'athlete-' + athletePage.value.athlete.id;
+            } else {
+              window.location.hash = 'athletes';
+            }
+          }
+
+          function resetAthleteForm(athlete){
+            athleteForm.id = athlete && athlete.id ? athlete.id : null;
+            athleteForm.name = athlete && athlete.name ? athlete.name : '';
+            athleteForm.primary_event = athlete && (athlete.primary_event || athlete.event) ? (athlete.primary_event || athlete.event) : '100 Free';
+            athleteForm.group_name = athlete && athlete.group_name ? athlete.group_name : 'A';
+            athleteForm.athlete_events = athlete && Array.isArray(athlete.athlete_events) && athlete.athlete_events.length
+              ? athlete.athlete_events.map((entry) => ({
+                  event: entry.event || '100 Free',
+                  meet: entry.meet || '',
+                  date: entry.date || '',
+                  time: formatSwimTime(entry.time || '')
+                }))
+              : [{ event: athleteForm.primary_event, meet: '', date: '', time: '' }];
+          }
+
+          function selectBestEvent(eventName){
+            selectedBestEvent.value = selectedBestEvent.value === eventName ? '' : eventName;
+          }
+
+          function resetPracticeForm(practice){
+            editingPracticeId.value = practice && practice.id ? practice.id : null;
+            title.value = practice && practice.title ? practice.title : '';
+            selectedTeams.value = practice && Array.isArray(practice.assignedTeams) ? practice.assignedTeams.slice() : [];
+            const parsed = practice && (practice.parsed || practice.content);
+            practiceItems.value = parsed && Array.isArray(parsed.items) && parsed.items.length
+              ? parsed.items.map((item) => ({
+                  type: item.type || 'Swim',
+                  stroke: item.stroke || 'Fr',
+                  distance: item.distance || 100,
+                  sets: item.sets || 1,
+                  reps: item.reps || 1,
+                  rest: item.rest || '',
+                  note: item.note || ''
+                }))
+              : [{ type: 'Warmup', stroke: 'Fr', distance: 200, sets: 1, reps: 1, rest: '', note: '' }];
+            created.value = '';
+          }
+
+          function addItem(){
+            practiceItems.value.push({ type: 'Swim', stroke: 'Fr', distance: 100, sets: 1, reps: 1, rest: '0:20', note: '' });
+          }
+
+          function removeItem(index){
+            practiceItems.value.splice(index, 1);
+          }
+
+          function movePracticeItem(fromIndex, toIndex){
+            if (fromIndex === toIndex || fromIndex == null || toIndex == null) return;
+            if (fromIndex < 0 || fromIndex >= practiceItems.value.length) return;
+            if (toIndex < 0 || toIndex >= practiceItems.value.length) return;
+            const items = practiceItems.value.slice();
+            const [movedItem] = items.splice(fromIndex, 1);
+            items.splice(toIndex, 0, movedItem);
+            practiceItems.value = items;
+          }
+
+          function startPracticeItemDrag(index, event){
+            draggedPracticeItemIndex.value = index;
+            if (event && event.dataTransfer) {
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', String(index));
+              const rowElement = event.currentTarget && event.currentTarget.closest ? event.currentTarget.closest('.practice-item') : null;
+              if (rowElement) {
+                dragPreviewElement = rowElement.cloneNode(true);
+                dragPreviewElement.style.position = 'fixed';
+                dragPreviewElement.style.top = '-9999px';
+                dragPreviewElement.style.left = '-9999px';
+                dragPreviewElement.style.width = `${rowElement.offsetWidth}px`;
+                dragPreviewElement.style.pointerEvents = 'none';
+                dragPreviewElement.style.opacity = '0.95';
+                dragPreviewElement.style.boxShadow = '0 18px 36px rgba(22,35,59,0.18)';
+                dragPreviewElement.style.background = '#ffffff';
+                document.body.appendChild(dragPreviewElement);
+                event.dataTransfer.setDragImage(dragPreviewElement, Math.min(80, rowElement.offsetWidth / 2), Math.min(24, rowElement.offsetHeight / 2));
+              }
+            }
+          }
+
+          function endPracticeItemDrag(){
+            draggedPracticeItemIndex.value = null;
+            if (dragPreviewElement && dragPreviewElement.parentNode) {
+              dragPreviewElement.parentNode.removeChild(dragPreviewElement);
+            }
+            dragPreviewElement = null;
+          }
+
+          function hoverPracticeItem(targetIndex){
+            if (draggedPracticeItemIndex.value == null) return;
+            if (draggedPracticeItemIndex.value === targetIndex) return;
+            movePracticeItem(draggedPracticeItemIndex.value, targetIndex);
+            draggedPracticeItemIndex.value = targetIndex;
+          }
+
+          function dropPracticeItem(){
+            endPracticeItemDrag();
+          }
+
+          function addAthleteEvent(){
+            athleteForm.athlete_events.push({ event: athleteForm.primary_event || '100 Free', meet: '', date: '', time: '' });
+          }
+
+          function removeAthleteEvent(index){
+            athleteForm.athlete_events.splice(index, 1);
+            if (athleteForm.athlete_events.length === 0) addAthleteEvent();
+          }
+
+          function athleteBestSummary(athlete){
+            if (!athlete || !Array.isArray(athlete.best_times) || athlete.best_times.length === 0) return 'ベスト未登録';
+            return athlete.best_times.map((entry) => `${entry.event} ${formatSwimTime(entry.time)}`).join(' / ');
+          }
+
+          function practiceSummary(parsed){
+            if (!parsed || !Array.isArray(parsed.items) || parsed.items.length === 0) return 'メニュー詳細なし';
+            return parsed.items.map((item) => {
+              const parts = [];
+              if (item.type) parts.push(item.type);
+              if (item.stroke) parts.push(item.stroke);
+              if (item.distance) parts.push(item.distance + 'm');
+              if (item.sets) parts.push(item.sets + 'set');
+              if (item.reps) parts.push('x' + item.reps);
+              if (item.rest) parts.push('cycle ' + item.rest);
+              if (item.note) parts.push('備考 ' + item.note);
+              return parts.join(' / ');
+            }).join('\n');
+          }
+
+          function practiceTableRows(practice){
+            const parsed = practice && (practice.parsed || practice.content);
+            if (!parsed || !Array.isArray(parsed.items)) return [];
+            return parsed.items.map((item) => ({
+              type: item.type || '',
+              stroke: item.stroke || '',
+              distance: item.distance ? item.distance + 'm' : '',
+              sets: item.sets ? item.sets + 'set' : '',
+              reps: item.reps ? 'x' + item.reps : '',
+              rest: item.rest || '',
+              cycle: item.rest || '',
+              note: item.note || ''
+            }));
+          }
+
+          function practiceCardSummary(practice){
+            return practiceSummary(practice.parsed || practice.content);
+          }
+
+          function assignedAthleteNames(practice){
+            if (!practice || !Array.isArray(practice.assignedAthletes) || practice.assignedAthletes.length === 0) return '割り当てなし';
+            return practice.assignedAthletes.map((athlete) => athlete.name).join(', ');
+          }
+
+          function assignedTeamNames(practice){
+            if (!practice || !Array.isArray(practice.assignedTeams) || practice.assignedTeams.length === 0) return '割り当てなし';
+            return practice.assignedTeams.join(', ');
+          }
+
+          function previewComment(text){
+            if (!text) return 'コメントはまだありません';
+            return text.length > 220 ? text.slice(0, 220) + '...' : text;
+          }
+
+          function exportPractice(practice){
+            const rows = practiceTableRows(practice);
+            const meta = [
+              ['タイトル', practice.title || '無題の練習'],
+              ['対象チーム', assignedTeamNames(practice)],
+              ['作成日', practice.created_at || '']
+            ];
+            const header = ['種別', '種目', '距離', 'セット数', '本数', 'cycle', '備考'];
+            const csvLines = [
+              ...meta.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+              '',
+              header.join(','),
+              ...rows.map((row) => [row.type, row.stroke, row.distance, row.sets || '', row.reps, row.cycle || '', row.note || '']
+                .map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+            ];
+            const blob = new Blob(["\uFEFF" + csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `practice-${practice.id}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+          }
+
+          function apiUrl(path){
+            return API_BASE + path;
+          }
+
+          async function fetchJson(path, options){
+            let response;
+            try{
+              response = await fetch(apiUrl(path), options);
+            }catch(error){
+              const message = String(error && error.message ? error.message : error);
+              if (message.includes('expected pattern')) {
+                throw new Error('接続先のURL設定が正しくないか、この画面がローカルファイルとして開かれています。`npm start` または `npm run start:desktop` で起動した画面を使ってください。');
+              }
+              if (message.includes('Failed to fetch')) {
+                throw new Error('ローカルAPIに接続できませんでした。`npm start` または `npm run start:desktop` でアプリを起動し直してください。');
+              }
+              throw error;
+            }
+            const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+            if (!contentType.includes('application/json')) {
+              const text = await response.text();
+              if (text.includes('<!DOCTYPE html') || text.includes('<html')) {
+                if (path.includes('/chat')) {
+                  throw new Error('AIチャットAPIが見つかりません。古いサーバーが起動している可能性があります。`npm start` または `npm run start:desktop` をやり直して最新のサーバーに更新してください。');
+                }
+                throw new Error('APIの代わりにHTMLが返ってきました。ローカルサーバーの再起動後に、`http://localhost:3002` か `start:desktop` で開いた画面を使ってください。');
+              }
+              throw new Error('API応答の形式が正しくありません。ローカルサーバーを再起動してください。');
+            }
+            const data = await response.json();
+            if (!response.ok) {
+              throw new Error(data && data.error ? data.error : 'Request failed');
+            }
+            return data;
+          }
+
+          function escapeHtml(value){
+            return String(value || '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+          }
+
+          function parseInlineMarkdown(text){
+            return String(text || '')
+              .replace(/`([^`]+)`/g, '<code>$1</code>')
+              .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+              .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+          }
+
+          function renderMarkdownTable(block){
+            const lines = block.split('\n').map((line) => line.trim()).filter(Boolean);
+            if (lines.length < 2) return '';
+            const divider = lines[1];
+            if (!/^\|?[\s:-]+\|[\s|:-]*$/.test(divider)) return '';
+            const rows = lines
+              .filter((_, index) => index !== 1)
+              .map((line) => line.replace(/^\||\|$/g, '').split('|').map((cell) => parseInlineMarkdown(cell.trim())));
+            if (!rows.length) return '';
+            const header = rows[0];
+            const body = rows.slice(1);
+            return `<table><thead><tr>${header.map((cell) => `<th>${cell}</th>`).join('')}</tr></thead><tbody>${body.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+          }
+
+          function renderMarkdown(text){
+            const source = escapeHtml(String(text || '').trim());
+            if (!source) return '';
+
+            const codeBlocks = [];
+            let working = source.replace(/```([\s\S]*?)```/g, (_, code) => {
+              const token = `@@CODEBLOCK${codeBlocks.length}@@`;
+              codeBlocks.push(`<pre><code>${code.trim()}</code></pre>`);
+              return token;
+            });
+
+            const lines = working.split('\n');
+            const html = [];
+            let listType = null;
+            let paragraph = [];
+
+            function flushParagraph(){
+              if (!paragraph.length) return;
+              const block = paragraph.join('\n').trim();
+              paragraph = [];
+              if (!block) return;
+              if (block.includes('\n') && block.split('\n').every((line) => line.includes('|'))) {
+                const tableHtml = renderMarkdownTable(block);
+                if (tableHtml) {
+                  html.push(tableHtml);
+                  return;
+                }
+              }
+              html.push(`<p>${parseInlineMarkdown(block).replace(/\n/g, '<br>')}</p>`);
+            }
+
+            function closeList(){
+              if (!listType) return;
+              html.push(listType === 'ul' ? '</ul>' : '</ol>');
+              listType = null;
+            }
+
+            for (const rawLine of lines) {
+              const line = rawLine.trimEnd();
+              const trimmed = line.trim();
+              if (!trimmed) {
+                flushParagraph();
+                closeList();
+                continue;
+              }
+              if (/^@@CODEBLOCK\d+@@$/.test(trimmed)) {
+                flushParagraph();
+                closeList();
+                html.push(trimmed);
+                continue;
+              }
+              const headingMatch = trimmed.match(/^(#{1,4})\s+(.*)$/);
+              if (headingMatch) {
+                flushParagraph();
+                closeList();
+                const level = headingMatch[1].length;
+                html.push(`<h${level}>${parseInlineMarkdown(headingMatch[2])}</h${level}>`);
+                continue;
+              }
+              const quoteMatch = trimmed.match(/^>\s?(.*)$/);
+              if (quoteMatch) {
+                flushParagraph();
+                closeList();
+                html.push(`<blockquote>${parseInlineMarkdown(quoteMatch[1])}</blockquote>`);
+                continue;
+              }
+              const orderedMatch = trimmed.match(/^\d+\.\s+(.*)$/);
+              if (orderedMatch) {
+                flushParagraph();
+                if (listType && listType !== 'ol') closeList();
+                if (!listType) {
+                  listType = 'ol';
+                  html.push('<ol>');
+                }
+                html.push(`<li>${parseInlineMarkdown(orderedMatch[1])}</li>`);
+                continue;
+              }
+              const unorderedMatch = trimmed.match(/^[-*]\s+(.*)$/);
+              if (unorderedMatch) {
+                flushParagraph();
+                if (listType && listType !== 'ul') closeList();
+                if (!listType) {
+                  listType = 'ul';
+                  html.push('<ul>');
+                }
+                html.push(`<li>${parseInlineMarkdown(unorderedMatch[1])}</li>`);
+                continue;
+              }
+              paragraph.push(trimmed);
+            }
+
+            flushParagraph();
+            closeList();
+
+            let rendered = html.join('');
+            rendered = rendered.replace(/@@CODEBLOCK(\d+)@@/g, (_, index) => codeBlocks[Number(index)] || '');
+            return rendered;
+          }
+
+          async function loadAthletes(){
+            athleteList.value = await fetchJson('/api/athletes');
+          }
+
+          async function loadPractices(){
+            practiceList.value = await fetchJson('/api/practices');
+            if (!currentPractice.value && practiceList.value.length) currentPractice.value = practiceList.value[0];
+          }
+
+          async function loadSettings(){
+            const data = await fetchJson('/api/settings');
+            Object.assign(aiSettings, data, {
+              openaiApiKey: '',
+              geminiApiKey: ''
+            });
+            aiSettings.menuColumnOrder = normalizeMenuColumnOrder(aiSettings.menuColumnOrder);
+          }
+
+          function providerLabel(provider){
+            if (provider === 'openai') return 'OpenAI';
+            if (provider === 'gemini') return 'Gemini';
+            return 'Ollama';
+          }
+
+          function startMenuColumnDrag(key){
+            draggedMenuColumnKey.value = key;
+          }
+
+          function hoverMenuColumn(targetKey){
+            if (!draggedMenuColumnKey.value || draggedMenuColumnKey.value === targetKey) return;
+            moveMenuColumnKey(draggedMenuColumnKey.value, targetKey);
+          }
+
+          function dropMenuColumn(){
+            draggedMenuColumnKey.value = null;
+          }
+
+          function endMenuColumnDrag(){
+            draggedMenuColumnKey.value = null;
+          }
+
+          function resetMenuColumnOrder(){
+            aiSettings.menuColumnOrder = [...DEFAULT_MENU_COLUMN_ORDER];
+          }
+
+          function menuTableCell(row, key){
+            if (key === 'rest') return row.rest || row.cycle || '-';
+            return row[key] || '-';
+          }
+
+          async function saveSettings(){
+            settingsMessage.value = '保存中...';
+            try{
+              const payload = {
+                provider: aiSettings.provider,
+                ollamaBaseUrl: aiSettings.ollamaBaseUrl,
+                ollamaModel: aiSettings.ollamaModel,
+                openaiModel: aiSettings.openaiModel,
+                openaiBaseUrl: aiSettings.openaiBaseUrl,
+                geminiModel: aiSettings.geminiModel,
+                geminiBaseUrl: aiSettings.geminiBaseUrl,
+                menuColumnOrder: normalizeMenuColumnOrder(aiSettings.menuColumnOrder)
+              };
+              if (aiSettings.openaiApiKey === '__CLEAR__') payload.resetOpenAIApiKey = true;
+              else if (aiSettings.openaiApiKey.trim()) payload.openaiApiKey = aiSettings.openaiApiKey.trim();
+              if (aiSettings.geminiApiKey === '__CLEAR__') payload.resetGeminiApiKey = true;
+              else if (aiSettings.geminiApiKey.trim()) payload.geminiApiKey = aiSettings.geminiApiKey.trim();
+              const data = await fetchJson('/api/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+              Object.assign(aiSettings, data, {
+                openaiApiKey: '',
+                geminiApiKey: ''
+              });
+              aiSettings.menuColumnOrder = normalizeMenuColumnOrder(aiSettings.menuColumnOrder);
+              settingsMessage.value = '設定を保存しました。';
+            }catch(error){
+              settingsMessage.value = String(error.message || error);
+            }
+          }
+
+          function startCreatePractice(){
+            resetPracticeForm();
+            view.value = 'practices';
+            window.location.hash = 'practices';
+            scrollToPracticeEditor();
+          }
+
+          function startEditPractice(){
+            if (!currentPractice.value) return;
+            resetPracticeForm(currentPractice.value);
+            view.value = 'practices';
+            scrollToPracticeEditor();
+          }
+
+          async function savePractice(){
+            if (practiceItems.value.length === 0) return alert('項目を追加してください');
+            if (selectedTeams.value.length === 0) return alert('少なくとも1つはチームを割り当ててください');
+            const teamAthletes = athleteList.value.filter((athlete) => selectedTeams.value.includes(athlete.group_name || '未設定'));
+            const athleteIds = teamAthletes.map((athlete) => athlete.id);
+            const content = { items: practiceItems.value, athleteIds, teamNames: selectedTeams.value.slice() };
+            const isUpdate = Boolean(editingPracticeId.value);
+            const data = await fetchJson(isUpdate ? '/api/practice/' + editingPracticeId.value : '/api/practice', {
+              method: isUpdate ? 'PUT' : 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                title: title.value,
+                content,
+                sessionId: localStorage.getItem('ai_swimmers_session') || null,
+                athleteId: athleteIds[0] || null
+              })
+            });
+            if (data.id) {
+              created.value = (isUpdate ? '更新完了' : '作成完了') + ': ID=' + data.id;
+              practiceId.value = data.id;
+              await loadPractices();
+              await openPracticePage(data.id, false);
+              if (athletePage.value && athletePage.value.athlete && selectedTeams.value.includes(athletePage.value.athlete.group_name || '未設定')) {
+                await openAthletePage(athletePage.value.athlete.id, false);
+              }
+            } else {
+              created.value = JSON.stringify(data);
+            }
+          }
+
+          async function saveAthlete(){
+            if (!athleteForm.name.trim()) return alert('選手名を入力してください');
+            const normalizedEvents = athleteForm.athlete_events.map((entry) => ({
+              ...entry,
+              time: formatSwimTime(entry.time)
+            }));
+            const method = athleteForm.id ? 'PUT' : 'POST';
+            const url = athleteForm.id ? '/api/athlete/' + athleteForm.id : '/api/athlete';
+            const data = await fetchJson(url, {
+              method,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: athleteForm.name.trim(),
+                event: athleteForm.primary_event,
+                best_time: '',
+                group_name: athleteForm.group_name
+                ,
+                athlete_events: normalizedEvents
+              })
+            });
+            if (data && data.id) {
+              await loadAthletes();
+              resetAthleteForm(data);
+              await openAthletePage(data.id, true);
+            } else {
+              alert('選手の保存に失敗しました\n' + JSON.stringify(data));
+            }
+          }
+
+          function startCreateAthlete(){
+            resetAthleteForm();
+            athletePage.value = null;
+            view.value = 'athletes';
+            window.location.hash = 'athletes';
+            scrollToAthleteEditor();
+          }
+
+          function startEditAthlete(){
+            if (!athletePage.value || !athletePage.value.athlete) return;
+            resetAthleteForm(athletePage.value.athlete);
+            scrollToAthleteEditor();
+          }
+
+          function toggleTeam(teamName){
+            const index = selectedTeams.value.indexOf(teamName);
+            if (index === -1) selectedTeams.value.push(teamName);
+            else selectedTeams.value.splice(index, 1);
+            localStorage.setItem('ai_swimmers_selected_teams', JSON.stringify(selectedTeams.value));
+          }
+
+          async function openAthletePage(id, updateHash = true){
+            try{
+              const data = await fetchJson('/api/athlete/' + id);
+              athletePage.value = data;
+              resetAthleteForm(data.athlete);
+              selectedBestEvent.value = '';
+              view.value = 'athletes';
+              if (updateHash) window.location.hash = 'athlete-' + data.athlete.id;
+              await scrollToAthleteEditor();
+            }catch(error){
+              athletePage.value = { error: String(error.message || error) };
+              view.value = 'athletes';
+              if (updateHash) window.location.hash = 'athletes';
+            }
+          }
+
+          async function openPracticePage(id, updateHash = true, focusEditor = true){
+            try{
+              const data = await fetchJson('/api/practice/' + id);
+              currentPractice.value = data.practice;
+              if (!currentPractice.value.comments) currentPractice.value.comments = data.comments || [];
+              resetPracticeForm(currentPractice.value);
+              view.value = 'practices';
+              if (updateHash) window.location.hash = 'practice-' + id;
+              if (focusEditor) await scrollToPracticeEditor();
+            }catch(error){
+              currentPractice.value = null;
+              view.value = 'practices';
+              if (updateHash) window.location.hash = 'practices';
+            }
+          }
+
+          async function openAIPracticePage(id){
+            await openPracticePage(id, false, false);
+            view.value = 'ai';
+            window.location.hash = 'ai';
+          }
+
+          async function sendPracticeChatMessage(){
+            if (!currentPractice.value || !currentPractice.value.id) return alert('対象の練習を選択してください');
+            if (!chatInput.value.trim()) return alert('メッセージを入力してください');
+            isGenerating.value = true;
+            generationMessage.value = '';
+            try{
+              const message = chatInput.value.trim();
+              chatInput.value = '';
+              const data = await fetchJson('/api/practice/' + currentPractice.value.id + '/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message })
+              });
+              currentPractice.value.comments = data.comments || [];
+              generationMessage.value = '返信しました。';
+              await loadPractices();
+              await nextTick();
+            }catch(error){
+              generationMessage.value = String(error.message || error);
+            } finally {
+              isGenerating.value = false;
+            }
+          }
+
+          function submitChatOnCtrlEnter(event){
+            if (!(event.ctrlKey || event.metaKey) || event.key !== 'Enter') return;
+            event.preventDefault();
+            if (isGenerating.value) return;
+            sendPracticeChatMessage();
+          }
+
+          async function clearPracticeChatHistory(){
+            if (!currentPractice.value || !currentPractice.value.id) return alert('対象の練習を選択してください');
+            const confirmed = window.confirm('この練習のAIチャット履歴を削除します。よろしいですか？');
+            if (!confirmed) return;
+            generationMessage.value = '';
+            try{
+              const data = await fetchJson('/api/practice/' + currentPractice.value.id + '/comments', {
+                method: 'DELETE'
+              });
+              currentPractice.value.comments = data.comments || [];
+              generationMessage.value = '履歴を削除しました。';
+              await loadPractices();
+            }catch(error){
+              generationMessage.value = String(error.message || error);
+            }
+          }
+
+          watch(selectedTeams, (value) => {
+            localStorage.setItem('ai_swimmers_selected_teams', JSON.stringify(value));
+          }, { deep: true });
+
+          onMounted(async () => {
+            if (!localStorage.getItem('ai_swimmers_session')) {
+              localStorage.setItem('ai_swimmers_session', 's_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6));
+            }
+            const saved = localStorage.getItem('ai_swimmers_selected_teams');
+            if (saved) {
+              try { selectedTeams.value = JSON.parse(saved); }
+              catch (e) { selectedTeams.value = [String(saved)]; }
+            }
+            await loadAthletes();
+            await loadPractices();
+            await loadSettings();
+            syncViewFromHash();
+            window.addEventListener('hashchange', syncViewFromHash);
+          });
+
+          return {
+            GROUP_OPTIONS,
+            ITEM_TYPES,
+            EVENT_OPTIONS,
+            STROKE_OPTIONS,
+            DISTANCE_OPTIONS,
+            REPS_OPTIONS,
+            CYCLE_OPTIONS,
+            editingPracticeId,
+            title,
+            athleteList,
+            selectedTeams,
+            teamList,
+              athletePage,
+            currentAthlete,
+            displayedPractices,
+            practiceList,
+            currentPractice,
+            practiceItems,
+            chatInput,
+            created,
+            generationMessage,
+            isGenerating,
+            draggedPracticeItemIndex,
+            practiceId,
+            view,
+            settingsMessage,
+            aiSettings,
+            groupFilter,
+            athleteForm,
+            selectedBestEvent,
+            allGroups,
+            groupedAthletes,
+            filteredAthletes,
+            needsAISetup,
+            orderedMenuColumns,
+            draggedMenuColumnKey,
+            currentAthleteTrendRows,
+            currentAthleteChart,
+            athleteEditorCard,
+            practiceEditorCard,
+            formatGroupLabel,
+            formatSwimTime,
+            normalizeEventTime,
+            providerLabel,
+            startMenuColumnDrag,
+            hoverMenuColumn,
+            dropMenuColumn,
+            endMenuColumnDrag,
+            resetMenuColumnOrder,
+            menuTableCell,
+            renderMarkdown,
+            selectBestEvent,
+            setView,
+            addItem,
+            removeItem,
+            startPracticeItemDrag,
+            endPracticeItemDrag,
+            hoverPracticeItem,
+            dropPracticeItem,
+            practiceSummary,
+            practiceTableRows,
+            practiceCardSummary,
+            assignedAthleteNames,
+            assignedTeamNames,
+            athleteBestSummary,
+            previewComment,
+            exportPractice,
+            savePractice,
+            saveAthlete,
+            sendPracticeChatMessage,
+            submitChatOnCtrlEnter,
+            clearPracticeChatHistory,
+            startCreatePractice,
+            startEditPractice,
+            startCreateAthlete,
+            startEditAthlete,
+            addAthleteEvent,
+            removeAthleteEvent,
+            toggleTeam,
+            openAthletePage,
+            openPracticePage,
+            openAIPracticePage,
+            saveSettings
+          };
+        },
+        template: `
+          <div class="topbar">
+            <div class="headline">
+              <h1>AI Swimmers Note</h1>
+            </div>
+            <div class="nav">
+              <button :class="{ active: view === 'dashboard' }" @click="setView('dashboard')">ダッシュボード</button>
+              <button :class="{ active: view === 'practices' }" @click="setView('practices')">練習ページ</button>
+              <button :class="{ active: view === 'ai' }" @click="setView('ai')">【β版】AIコーチ</button>
+              <button :class="{ active: view === 'athletes' }" @click="setView('athletes')">選手ページ</button>
+              <button :class="{ active: view === 'settings' }" @click="setView('settings')">API設定</button>
+              <button :class="{ active: view === 'display-settings' }" @click="setView('display-settings')">表示設定</button>
+            </div>
+          </div>
+
+          <div v-if="view === 'dashboard'" class="dashboard-stack">
+            <section class="card">
+              <div class="section-head">
+                <div>
+                  <h3>作成済み練習一覧</h3>
+                  <p>練習ページで新規作成と修正ができます。</p>
+                </div>
+                <button class="ghost-btn" @click="setView('practices')">練習ページを開く</button>
+              </div>
+              <div class="list-block">
+                <button
+                  v-for="practice in practiceList.slice(0, 4)"
+                  :key="practice.id"
+                  class="practice-card"
+                  @click="openPracticePage(practice.id)"
+                >
+                  <strong>#{{ practice.id }} {{ practice.title || '無題の練習' }}</strong>
+                  <div class="meta-line">対象チーム: {{ assignedTeamNames(practice) }}</div>
+                  <div class="practice-table-wrap">
+                    <table class="practice-table">
+                      <thead>
+                        <tr>
+                          <th v-for="column in orderedMenuColumns" :key="column.key">{{ column.label }}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(row, index) in practiceTableRows(practice).slice(0, 3)" :key="index">
+                          <td v-for="column in orderedMenuColumns" :key="column.key">{{ menuTableCell(row, column.key) }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </button>
+                <div v-if="practiceList.length === 0" class="empty">練習を作成すると、ここに履歴が並びます。</div>
+              </div>
+            </section>
+          </div>
+
+          <div v-else-if="view === 'settings'" class="settings-layout">
+            <section class="card">
+              <div class="section-head">
+                <div>
+                  <h3>AI 接続設定</h3>
+                  <p>Ollama、OpenAI、Gemini のいずれかを選び、必要な URL・モデル・API キーを保存します。</p>
+                </div>
+              </div>
+              <div class="status-table">
+                <div class="status-label">現在利用中</div>
+                <div class="status-value">{{ providerLabel(aiSettings.provider) }}</div>
+                <div class="status-label">Model</div>
+                <div class="status-value" v-if="aiSettings.provider === 'ollama'">{{ aiSettings.ollamaModel }}</div>
+                <div class="status-value" v-else-if="aiSettings.provider === 'openai'">{{ aiSettings.openaiModel }}</div>
+                <div class="status-value" v-else>{{ aiSettings.geminiModel }}</div>
+                <template v-if="aiSettings.provider === 'openai'">
+                  <div class="status-label">API Key</div>
+                  <div class="status-value">{{ aiSettings.hasOpenAIApiKey ? '保存済み' : '未設定' }}</div>
+                </template>
+                <template v-else-if="aiSettings.provider === 'gemini'">
+                  <div class="status-label">API Key</div>
+                  <div class="status-value">{{ aiSettings.hasGeminiApiKey ? '保存済み' : '未設定' }}</div>
+                </template>
+              </div>
+              <div class="stack">
+                <div class="form-row">
+                  <label>利用するプロバイダ</label>
+                  <select v-model="aiSettings.provider">
+                    <option value="ollama">Ollama</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="gemini">Gemini</option>
+                  </select>
+                </div>
+
+                <div v-if="aiSettings.provider === 'ollama'" class="stack">
+                  <details class="help-card">
+                    <summary>Ollama の使い方ヘルプ</summary>
+                    <ol>
+                      <li>Mac に Ollama を入れます。</li>
+                      <li>ターミナルで ollama serve を起動します。</li>
+                      <li>ollama pull gemma4:26b のようにモデルをダウンロードします。</li>
+                      <li>通常は URL を http://localhost:11434/v1/chat/completions のまま使います。</li>
+                      <li>Model に pull 済みのモデル名を入れて保存します。</li>
+                    </ol>
+                  </details>
+                  <div class="form-row">
+                    <label>Ollama API URL</label>
+                    <input v-model="aiSettings.ollamaBaseUrl" placeholder="http://localhost:11434/v1/chat/completions" />
+                  </div>
+                  <div class="form-row">
+                    <label>Ollama Model</label>
+                    <input v-model="aiSettings.ollamaModel" placeholder="gemma4:26b" />
+                  </div>
+                </div>
+
+                <div v-else-if="aiSettings.provider === 'openai'" class="stack">
+                  <details class="help-card" open>
+                    <summary>OpenAI API キーの取得方法</summary>
+                    <ol>
+                      <li>OpenAI Platform にログインします。</li>
+                      <li>API keys の画面を開きます。</li>
+                      <li>Create new secret key を押して新しいキーを作成します。</li>
+                      <li>表示された sk- で始まるキーをこの画面の API Key に貼り付けます。</li>
+                      <li>最初は gpt-4.1-mini を使うと扱いやすいです。</li>
+                      <li>保存すると、このアプリの AI コメント生成で OpenAI を使うようになります。</li>
+                    </ol>
+                    <ul>
+                      <li>キー全文は作成直後しか見えないことがあります。</li>
+                      <li>課金や利用上限設定がないと生成時に失敗することがあります。</li>
+                    </ul>
+                  </details>
+                  <div class="form-row">
+                    <label>OpenAI Chat Completions URL</label>
+                    <input v-model="aiSettings.openaiBaseUrl" placeholder="https://api.openai.com/v1/chat/completions" />
+                  </div>
+                  <div class="form-row">
+                    <label>OpenAI Model</label>
+                    <input v-model="aiSettings.openaiModel" placeholder="gpt-4.1-mini" />
+                  </div>
+                  <div class="form-row">
+                    <label>OpenAI API Key</label>
+                    <input v-model="aiSettings.openaiApiKey" type="password" placeholder="sk-..." />
+                  </div>
+                  <div class="secret-row" v-if="aiSettings.hasOpenAIApiKey">
+                    <span class="muted">保存済みキー: {{ aiSettings.openaiApiKeyMasked }}</span>
+                    <button class="mini-btn" @click="aiSettings.openaiApiKey = '__CLEAR__'; saveSettings()">保存済みキーを削除</button>
+                  </div>
+                </div>
+
+                <div v-else class="stack">
+                  <details class="help-card" open>
+                    <summary>Gemini API キーの取得方法</summary>
+                    <ol>
+                      <li>Google AI Studio を開いて Google アカウントでログインします。</li>
+                      <li>Create API key を押して API キーを作成します。</li>
+                      <li>AIza... で始まるキーをこの画面の API Key に貼り付けます。</li>
+                      <li>Model はまず gemini-2.5-flash のままで大丈夫です。</li>
+                      <li>Base URL は通常そのままで使えます。</li>
+                      <li>保存すると、このアプリの AI コメント生成で Gemini を使うようになります。</li>
+                    </ol>
+                    <ul>
+                      <li>保存したキーはこの Mac のローカル DB に保存されます。</li>
+                      <li>Google 側の利用制限や API 状態によっては生成時にエラーになることがあります。</li>
+                    </ul>
+                  </details>
+                  <div class="form-row">
+                    <label>Gemini Base URL</label>
+                    <input v-model="aiSettings.geminiBaseUrl" placeholder="https://generativelanguage.googleapis.com/v1beta/models" />
+                  </div>
+                  <div class="form-row">
+                    <label>Gemini Model</label>
+                    <input v-model="aiSettings.geminiModel" placeholder="gemini-2.5-flash" />
+                  </div>
+                  <div class="form-row">
+                    <label>Gemini API Key</label>
+                    <input v-model="aiSettings.geminiApiKey" type="password" placeholder="AIza..." />
+                  </div>
+                  <div class="secret-row" v-if="aiSettings.hasGeminiApiKey">
+                    <span class="muted">保存済みキー: {{ aiSettings.geminiApiKeyMasked }}</span>
+                    <button class="mini-btn" @click="aiSettings.geminiApiKey = '__CLEAR__'; saveSettings()">保存済みキーを削除</button>
+                  </div>
+                </div>
+
+                <div class="inline-actions">
+                  <button class="primary-btn" @click="saveSettings">設定を保存</button>
+                </div>
+                <div class="muted" v-if="settingsMessage">{{ settingsMessage }}</div>
+              </div>
+            </section>
+
+          </div>
+
+          <div v-else-if="view === 'display-settings'" class="settings-layout">
+            <section class="card">
+              <div class="section-head">
+                <div>
+                  <h3>表示設定</h3>
+                  <p>練習メニューの列順をここで変更できます。保存すると練習ページとAIコーチのメニュー編集に反映されます。</p>
+                </div>
+              </div>
+              <div class="column-order-list">
+                <div
+                  v-for="column in orderedMenuColumns"
+                  :key="column.key"
+                  class="column-order-item"
+                  :class="{ dragging: draggedMenuColumnKey === column.key }"
+                  @dragover.prevent="hoverMenuColumn(column.key)"
+                  @drop.prevent="dropMenuColumn"
+                >
+                  <span class="column-order-label">{{ column.label }}</span>
+                  <button
+                    class="icon-btn drag-handle"
+                    draggable="true"
+                    @dragstart="startMenuColumnDrag(column.key)"
+                    @dragend="endMenuColumnDrag"
+                    aria-label="並び替え"
+                    title="並び替え"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <rect x="5" y="6" width="14" height="2" rx="1"></rect>
+                      <rect x="5" y="11" width="14" height="2" rx="1"></rect>
+                      <rect x="5" y="16" width="14" height="2" rx="1"></rect>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div class="inline-actions" style="margin-top:14px">
+                <button class="ghost-btn" @click="resetMenuColumnOrder">既定の順番に戻す</button>
+                <button class="primary-btn" @click="saveSettings">表示設定を保存</button>
+              </div>
+            </section>
+          </div>
+
+          <div v-else-if="view === 'practices'" class="practice-layout">
+            <section ref="practiceEditorCard" class="card">
+              <div class="section-head">
+                <div>
+                  <h3>{{ editingPracticeId ? '練習を編集' : '新規練習' }}</h3>
+                  <p>チームの割り当てからメニュー編集まで、このページでまとめて行えます。</p>
+                </div>
+                <button class="ghost-btn" @click="startCreatePractice">新規メニュー</button>
+              </div>
+              <div class="stack">
+                <div class="form-row">
+                  <label>練習タイトル</label>
+                  <input v-model="title" placeholder="例: Aグループ 朝メイン前セット" />
+                </div>
+
+                <div class="stack">
+                  <div class="toolbar">
+                    <strong>割り当てるチーム</strong>
+                  </div>
+                  <div class="athlete-grid">
+                    <button
+                      v-for="team in teamList"
+                      :key="team.name"
+                      class="athlete-card team-card"
+                      :class="{ active: selectedTeams.includes(team.name) }"
+                      @click="toggleTeam(team.name)"
+                    >
+                      <div class="athlete-name">{{ team.name }}</div>
+                    </button>
+                    <div v-if="teamList.length === 0" class="empty">チームがまだありません。選手ページでグループを作ってください。</div>
+                  </div>
+                </div>
+
+                <div class="practice-list">
+                  <div
+                    v-for="(item, index) in practiceItems"
+                    :key="index"
+                    class="practice-item"
+                    :class="{ dragging: draggedPracticeItemIndex === index }"
+                    @dragover.prevent="hoverPracticeItem(index)"
+                    @drop.prevent="dropPracticeItem()"
+                  >
+                    <template v-for="column in orderedMenuColumns" :key="column.key">
+                      <select v-if="column.key === 'type'" v-model="item.type">
+                        <option v-for="type in ITEM_TYPES" :key="type">{{ type }}</option>
+                      </select>
+                      <select v-else-if="column.key === 'stroke'" v-model="item.stroke">
+                        <option v-for="stroke in STROKE_OPTIONS" :key="stroke">{{ stroke }}</option>
+                      </select>
+                      <select v-else-if="column.key === 'distance'" v-model.number="item.distance">
+                        <option v-for="distance in DISTANCE_OPTIONS" :key="distance" :value="distance">{{ distance }}</option>
+                      </select>
+                      <select v-else-if="column.key === 'sets'" v-model.number="item.sets">
+                        <option v-for="sets in REPS_OPTIONS" :key="'set-' + sets" :value="sets">{{ sets }} set</option>
+                      </select>
+                      <select v-else-if="column.key === 'reps'" v-model.number="item.reps">
+                        <option v-for="reps in REPS_OPTIONS" :key="reps" :value="reps">{{ reps }}</option>
+                      </select>
+                      <select v-else-if="column.key === 'rest'" v-model="item.rest">
+                        <option value="">cycleなし</option>
+                        <option v-for="cycle in CYCLE_OPTIONS" :key="cycle" :value="cycle">{{ cycle }}</option>
+                      </select>
+                      <input v-else-if="column.key === 'note'" v-model="item.note" placeholder="備考" />
+                    </template>
+                    <div class="item-actions">
+                      <button class="icon-btn danger" @click="removeItem(index)" aria-label="削除" title="削除">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M3 6h18"></path>
+                          <path d="M8 6V4h8v2"></path>
+                          <path d="M19 6l-1 14H6L5 6"></path>
+                          <path d="M10 11v6"></path>
+                          <path d="M14 11v6"></path>
+                        </svg>
+                      </button>
+                      <button
+                        class="icon-btn drag-handle"
+                        draggable="true"
+                        @dragstart="startPracticeItemDrag(index, $event)"
+                        @dragend="endPracticeItemDrag"
+                        aria-label="並び替え"
+                        title="並び替え"
+                      >
+                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <rect x="5" y="6" width="14" height="2" rx="1"></rect>
+                          <rect x="5" y="11" width="14" height="2" rx="1"></rect>
+                          <rect x="5" y="16" width="14" height="2" rx="1"></rect>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="inline-actions">
+                  <button class="ghost-btn" @click="addItem">項目を追加</button>
+                  <button class="primary-btn" @click="savePractice">{{ editingPracticeId ? '更新する' : '練習を作成' }}</button>
+                  <span v-if="created" class="footer-note">{{ created }}</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="section-head">
+                <div>
+                  <h2>練習ページ</h2>
+                  <p>作成済みの練習メニューを一覧で表示します。編集・CSV出力も可能です。</p>
+                </div>
+                <button class="ghost-btn" @click="startCreatePractice">新規メニュー</button>
+              </div>
+              <div class="list-block practice-scroll">
+                <div
+                  v-for="practice in displayedPractices"
+                  :key="practice.id"
+                  class="practice-card"
+                  :class="{ active: currentPractice && currentPractice.id === practice.id }"
+                  @click="openPracticePage(practice.id)"
+                >
+                  <div class="practice-card-head">
+                    <div>
+                      <strong>#{{ practice.id }} {{ practice.title || '無題の練習' }}</strong>
+                      <div class="meta-line">対象チーム: {{ assignedTeamNames(practice) }}</div>
+                      <div class="meta-line">作成日 {{ practice.created_at }}</div>
+                    </div>
+                    <div class="practice-card-actions">
+                      <button class="mini-btn" @click.stop="openPracticePage(practice.id)">編集</button>
+                      <button class="mini-btn" @click.stop="exportPractice(practice)">Excel出力</button>
+                    </div>
+                  </div>
+                  <div class="practice-table-wrap">
+                    <table class="practice-table">
+                      <thead>
+                        <tr>
+                          <th v-for="column in orderedMenuColumns" :key="column.key">{{ column.label }}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(row, index) in practiceTableRows(practice)" :key="index">
+                          <td v-for="column in orderedMenuColumns" :key="column.key">{{ menuTableCell(row, column.key) }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div v-if="practiceList.length === 0" class="empty">まだ練習メニューがありません。</div>
+              </div>
+            </section>
+          </div>
+
+          <div v-else-if="view === 'ai'">
+            <section v-if="needsAISetup" class="card ai-setup-banner">
+              <div class="section-head">
+                <div>
+                  <h3>AI利用前の設定</h3>
+                  <p>AIコーチを使う前に、設定ページで利用するAPIの設定を完了してください。</p>
+                </div>
+                <button class="ai-help-chip" @click="setView('settings')">API設定を開く</button>
+              </div>
+              <div class="footer-note">設定が完了すると、この案内は自動で非表示になります。</div>
+            </section>
+
+            <div class="ai-layout">
+            <div class="ai-left-stack">
+              <section class="card ai-selector-card">
+                <div class="section-head">
+                  <div>
+                    <h2>【β版】AIコーチ</h2>
+                    <p>練習メニューを選択し、AIコーチと会話できます。</p>
+                    <p>※AIコーチの提案には不正確な内容が含まれる場合があります。実際の練習への反映は、必ずご自身・ご担当コーチの判断で行ってください。</p>
+                  </div>
+                  <button class="ghost-btn" @click="setView('practices')">練習ページへ戻る</button>
+                </div>
+
+                <div class="ai-practice-list practice-scroll">
+                  <button
+                    v-for="practice in displayedPractices"
+                    :key="practice.id"
+                    class="ai-practice-card"
+                    :class="{ active: currentPractice && currentPractice.id === practice.id }"
+                    @click="openAIPracticePage(practice.id)"
+                  >
+                    <div>
+                      <strong>#{{ practice.id }} {{ practice.title || '無題の練習' }}</strong>
+                      <div class="meta-line">対象チーム: {{ assignedTeamNames(practice) }}</div>
+                    </div>
+                    <div class="ai-practice-meta">
+                      <span>{{ practice.created_at }}</span>
+                    </div>
+                  </button>
+                  <div v-if="practiceList.length === 0" class="empty">まだ練習メニューがありません。先に練習ページで作成してください。</div>
+                </div>
+              </section>
+
+              <section class="card ai-main ai-editor-card" v-if="currentPractice">
+                <div class="section-head">
+                  <div>
+                    <h3>練習メニューを編集</h3>
+                    <p>AI の意見を見ながら、この場でそのままメニューを調整できます。</p>
+                  </div>
+                </div>
+                <div class="stack">
+                  <div class="form-row">
+                    <label>練習タイトル</label>
+                    <input v-model="title" placeholder="例: Aグループ 朝メイン前セット" />
+                  </div>
+
+                  <div class="stack">
+                    <div class="ai-editor-meta">
+                      <strong>割り当てるチーム</strong>
+                      <span class="footer-note">左で編集、右で相談できます。</span>
+                    </div>
+                    <div class="ai-team-grid">
+                      <button
+                        v-for="team in teamList"
+                        :key="team.name"
+                        class="athlete-card team-card ai-team-chip"
+                        :class="{ active: selectedTeams.includes(team.name) }"
+                        @click="toggleTeam(team.name)"
+                      >
+                        <div class="athlete-name">{{ team.name }}</div>
+                      </button>
+                      <div v-if="teamList.length === 0" class="empty">チームがまだありません。選手ページでグループを作ってください。</div>
+                    </div>
+                  </div>
+
+                  <div class="practice-list">
+                    <div
+                      v-for="(item, index) in practiceItems"
+                      :key="index"
+                      class="practice-item"
+                      :class="{ dragging: draggedPracticeItemIndex === index }"
+                      @dragover.prevent="hoverPracticeItem(index)"
+                      @drop.prevent="dropPracticeItem()"
+                    >
+                      <template v-for="column in orderedMenuColumns" :key="column.key">
+                        <select v-if="column.key === 'type'" v-model="item.type">
+                          <option v-for="type in ITEM_TYPES" :key="type">{{ type }}</option>
+                        </select>
+                        <select v-else-if="column.key === 'stroke'" v-model="item.stroke">
+                          <option v-for="stroke in STROKE_OPTIONS" :key="stroke">{{ stroke }}</option>
+                        </select>
+                        <select v-else-if="column.key === 'distance'" v-model.number="item.distance">
+                          <option v-for="distance in DISTANCE_OPTIONS" :key="distance" :value="distance">{{ distance }}</option>
+                        </select>
+                        <select v-else-if="column.key === 'sets'" v-model.number="item.sets">
+                          <option v-for="sets in REPS_OPTIONS" :key="'ai-set-' + sets" :value="sets">{{ sets }} set</option>
+                        </select>
+                        <select v-else-if="column.key === 'reps'" v-model.number="item.reps">
+                          <option v-for="reps in REPS_OPTIONS" :key="'ai-reps-' + reps" :value="reps">{{ reps }}</option>
+                        </select>
+                        <select v-else-if="column.key === 'rest'" v-model="item.rest">
+                          <option value="">cycleなし</option>
+                          <option v-for="cycle in CYCLE_OPTIONS" :key="'ai-cycle-' + cycle" :value="cycle">{{ cycle }}</option>
+                        </select>
+                        <input v-else-if="column.key === 'note'" v-model="item.note" placeholder="備考" />
+                      </template>
+                      <div class="item-actions">
+                        <button class="icon-btn danger" @click="removeItem(index)" aria-label="削除" title="削除">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M3 6h18"></path>
+                            <path d="M8 6V4h8v2"></path>
+                            <path d="M19 6l-1 14H6L5 6"></path>
+                            <path d="M10 11v6"></path>
+                            <path d="M14 11v6"></path>
+                          </svg>
+                        </button>
+                        <button
+                          class="icon-btn drag-handle"
+                          draggable="true"
+                          @dragstart="startPracticeItemDrag(index, $event)"
+                          @dragend="endPracticeItemDrag"
+                          aria-label="並び替え"
+                          title="並び替え"
+                        >
+                          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <rect x="5" y="6" width="14" height="2" rx="1"></rect>
+                            <rect x="5" y="11" width="14" height="2" rx="1"></rect>
+                            <rect x="5" y="16" width="14" height="2" rx="1"></rect>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="inline-actions">
+                    <button class="ghost-btn" @click="addItem">項目を追加</button>
+                    <button class="primary-btn" @click="savePractice">この練習を更新</button>
+                    <span v-if="created" class="footer-note">{{ created }}</span>
+                  </div>
+                </div>
+              </section>
+              <section v-else class="card ai-main">
+                <div class="empty">左上の一覧から練習を選ぶと、ここでそのままメニューを編集できます。</div>
+              </section>
+            </div>
+
+            <section class="card ai-chat-card">
+              <div class="section-head">
+                <div>
+                  <h3>AIチャット</h3>
+                  <p>選択中の練習メニューを元に相談できます。</p>
+                </div>
+                <button v-if="currentPractice" class="ghost-btn" @click="clearPracticeChatHistory">履歴を削除</button>
+              </div>
+
+              <div v-if="currentPractice" class="chat-thread ai-chat-pane">
+                <div
+                  v-for="comment in (currentPractice && currentPractice.comments ? currentPractice.comments : [])"
+                  :key="comment.id"
+                  class="chat-bubble"
+                  :class="comment.role === 'assistant' ? 'assistant' : 'coach'"
+                >
+                  <span class="chat-role">{{ comment.role === 'assistant' ? 'AI' : 'あなた' }}</span>
+                  <div class="markdown" v-html="renderMarkdown(comment.content)"></div>
+                </div>
+                <div v-if="!currentPractice.comments || currentPractice.comments.length === 0" class="empty">まだ会話はありません。下の入力欄から AI に話しかけてください。</div>
+              </div>
+              <div v-else class="empty">対話したい練習を選ぶと、ここにチャット履歴が表示されます。</div>
+
+              <div v-if="currentPractice">
+                <div v-if="isGenerating" class="loading-row">
+                  <span class="spinner"></span>
+                  <span>AIが返信を作成中です...</span>
+                </div>
+                <div v-if="generationMessage" class="status-pill">{{ generationMessage }}</div>
+                <div class="chat-input-shell">
+                  <div class="form-row">
+                    <label>メッセージ</label>
+                    <textarea v-model="chatInput" rows="4" placeholder="このメニューの後半を乳酸耐性寄りにしたい、アップを短くしたい、など自然に相談できます。" @keydown="submitChatOnCtrlEnter"></textarea>
+                    <div class="footer-note"><code>Ctrl + Enter</code> で送信</div>
+                  </div>
+                  <button class="primary-btn" @click="sendPracticeChatMessage" :disabled="isGenerating">送信</button>
+                </div>
+              </div>
+            </section>
+          </div>
+          </div>
+
+          <div v-else class="athlete-layout">
+            <section class="card">
+              <div class="section-head">
+                <div>
+                  <h2>選手ページ</h2>
+                  <p>グループ分けとベストタイム管理に集中できるページです。</p>
+                </div>
+                <div class="inline-actions">
+                  <button class="ghost-btn" @click="startCreateAthlete">新規選手</button>
+                  <button v-if="currentAthlete" class="mini-btn" @click="startEditAthlete">この選手を編集</button>
+                </div>
+              </div>
+
+              <div class="toolbar">
+                <div class="chips">
+                  <button
+                    v-for="group in allGroups"
+                    :key="group"
+                    class="chip"
+                    :class="{ active: groupFilter === group }"
+                    @click="groupFilter = group"
+                  >
+                    {{ formatGroupLabel(group) }}
+                  </button>
+                </div>
+                <div class="footer-note">選手をクリックすると詳細を表示します。</div>
+              </div>
+
+              <div class="athlete-grid">
+                <button
+                  v-for="athlete in filteredAthletes"
+                  :key="athlete.id"
+                  class="athlete-card"
+                  :class="{ active: currentAthlete && currentAthlete.id === athlete.id }"
+                  @click="openAthletePage(athlete.id)"
+                >
+                  <div class="athlete-name">{{ athlete.name }}</div>
+                  <div class="tag-row">
+                    <span class="chip">{{ athlete.group_name || '未設定' }}</span>
+                    <span class="chip dim">{{ athlete.primary_event || athlete.event || '種目未設定' }}</span>
+                  </div>
+                  <div class="meta-line">{{ athleteBestSummary(athlete) }}</div>
+                </button>
+              </div>
+              <div v-if="filteredAthletes.length === 0" class="empty">このグループにはまだ選手がいません。</div>
+            </section>
+
+            <section class="card" v-if="currentAthlete">
+              <div class="athlete-detail-card">
+                <div class="section-head">
+                  <div>
+                    <h3>{{ currentAthlete.name }}</h3>
+                    <p>{{ currentAthlete.group_name || '未設定' }} / {{ currentAthlete.primary_event || currentAthlete.event || '種目未設定' }}</p>
+                  </div>
+                </div>
+                <div class="best-times-list">
+                  <div
+                    v-for="(entry, index) in currentAthlete.best_times"
+                    :key="index"
+                    class="best-time-row"
+                    :class="{ active: selectedBestEvent === entry.event }"
+                    @click="selectBestEvent(entry.event)"
+                  >
+                    <strong>{{ entry.event }}</strong>
+                    <span>{{ formatSwimTime(entry.time) }}</span>
+                    <span class="meta-line">{{ entry.date || '日付未設定' }} / {{ entry.meet || '大会名未設定' }}</span>
+                  </div>
+                  <div v-if="!currentAthlete.best_times || currentAthlete.best_times.length === 0" class="empty">大会タイムを登録すると、ここに種目ごとのベストが並びます。</div>
+                </div>
+                <section class="chart-shell">
+                  <div class="chart-head">
+                    <strong>タイム推移</strong>
+                    <div class="chart-legend" v-if="currentAthleteChart">
+                      <span
+                        v-for="series in currentAthleteChart.series"
+                        :key="series.event"
+                        class="legend-pill"
+                        :style="{ color: series.color }"
+                      >
+                        {{ series.event }}
+                      </span>
+                    </div>
+                  </div>
+                  <svg
+                    v-if="currentAthleteChart && selectedBestEvent"
+                    :viewBox="'0 0 ' + currentAthleteChart.width + ' ' + currentAthleteChart.height"
+                    width="100%"
+                    height="240"
+                    role="img"
+                    aria-label="大会タイム推移グラフ"
+                  >
+                    <line x1="28" y1="28" x2="28" y2="212" stroke="#cfdcf3" />
+                    <line x1="28" y1="212" x2="592" y2="212" stroke="#cfdcf3" />
+                    <g v-for="label in currentAthleteChart.yLabels" :key="label.value">
+                      <line x1="28" :y1="label.y" x2="592" :y2="label.y" stroke="#edf2fb" />
+                      <text x="10" :y="label.y + 4" font-size="11" fill="#5f6f8a">{{ label.label }}</text>
+                    </g>
+                    <g v-for="label in currentAthleteChart.xLabels" :key="label.label">
+                      <text :x="label.x" y="232" text-anchor="middle" font-size="11" fill="#5f6f8a">{{ label.label }}</text>
+                    </g>
+                    <path
+                      v-for="series in currentAthleteChart.series"
+                      :key="series.event"
+                      :d="series.path"
+                      fill="none"
+                      :stroke="series.color"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  <div v-else class="empty">{{ selectedBestEvent ? '同じ種目で2件以上の大会記録があると、ここにタイム推移グラフが表示されます。' : 'ベスト行をクリックすると、その種目の推移グラフを表示します。' }}</div>
+
+                  <div class="trend-grid" v-if="selectedBestEvent && currentAthleteTrendRows.length">
+                    <div v-for="row in currentAthleteTrendRows" :key="row.event" class="trend-row">
+                      <strong>{{ row.event }}</strong>
+                      <span>{{ formatSwimTime(row.firstTime) }} → {{ formatSwimTime(row.latestTime) }}</span>
+                      <span class="trend-up">{{ row.label }}</span>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </section>
+
+            <section v-else class="card">
+              <div class="empty">選手を選ぶと、ここにベストと推移が表示されます。</div>
+            </section>
+
+            <section ref="athleteEditorCard" class="card">
+                <div class="section-head">
+                  <div>
+                    <h3>{{ athleteForm.id ? '選手を編集' : '新規選手を登録' }}</h3>
+                    <p>グループ分け、専門種目、大会ごとの記録をここで整えます。</p>
+                  </div>
+                </div>
+                <div class="form-grid">
+                  <div class="form-row">
+                    <label>選手名</label>
+                    <input v-model="athleteForm.name" placeholder="例: Sato Haruka" />
+                  </div>
+                  <div class="form-row">
+                    <label>グループ</label>
+                    <select v-model="athleteForm.group_name">
+                      <option v-for="group in GROUP_OPTIONS" :key="group">{{ group }}</option>
+                    </select>
+                  </div>
+                  <div class="form-row">
+                    <label>専門種目</label>
+                    <select v-model="athleteForm.primary_event">
+                      <option v-for="eventName in EVENT_OPTIONS" :key="eventName" :value="eventName">{{ eventName }}</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="stack" style="margin-top:14px">
+                  <div class="toolbar">
+                    <strong>大会タイム履歴</strong>
+                    <button class="mini-btn" @click="addAthleteEvent">タイムを追加</button>
+                  </div>
+                  <div class="event-history-list">
+                    <div v-for="(entry, index) in athleteForm.athlete_events" :key="index" class="event-history-item">
+                      <select v-model="entry.event">
+                        <option v-for="eventName in EVENT_OPTIONS" :key="eventName" :value="eventName">{{ eventName }}</option>
+                      </select>
+                      <input v-model="entry.meet" placeholder="大会名" />
+                      <input v-model="entry.date" type="date" />
+                      <input v-model="entry.time" @blur="normalizeEventTime(index)" placeholder="記録 例 0'55&quot;12" />
+                      <button class="mini-btn" @click="removeAthleteEvent(index)">削除</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="inline-actions" style="margin-top:14px">
+                  <button class="primary-btn" @click="saveAthlete">{{ athleteForm.id ? '更新する' : '登録する' }}</button>
+                  <button class="ghost-btn" @click="startCreateAthlete">フォームを空にする</button>
+                </div>
+              </section>
+          </div>
+        `
+      }).mount('#app');
+    </script>
+  </body>
+</html>
