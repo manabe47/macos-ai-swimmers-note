@@ -177,7 +177,7 @@ async function upsertSettings(patch){
 }
 
 function compactText(value, maxLength = 220){
-  const text = String(value || '').replace(/s+/g, ' ').trim();
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
   if (!text) return '';
   return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
 }
@@ -310,6 +310,54 @@ function buildPracticeRevisionMessages(practice, athleteContext, contentObj, con
     });
   }
   return messages;
+}
+
+function buildContentText(contentObj){
+  if (typeof contentObj === 'string') return contentObj;
+  if (contentObj && Array.isArray(contentObj.items)) {
+    return contentObj.items.map((it, idx) => {
+      const parts = [];
+      if (it.type) parts.push(`${it.type}`);
+      if (it.stroke) parts.push(`stroke:${it.stroke}`);
+      if (it.distance !== undefined && it.distance !== null) parts.push(`${it.distance}m`);
+      if (it.sets) parts.push(`sets:${it.sets}`);
+      if (it.reps) parts.push(`x${it.reps}`);
+      if (it.rest) parts.push(`rest:${it.rest}`);
+      if (it.note) parts.push(`note:${it.note}`);
+      return `${idx + 1}. ${parts.join(' ')}`;
+    }).join('\n');
+  }
+  try { return JSON.stringify(contentObj, null, 2); } catch (e) { return String(contentObj); }
+}
+
+function collectAthleteIds(practice, contentObj){
+  const ids = new Set();
+  if (practice.athlete_id) ids.add(Number(practice.athlete_id));
+  if (contentObj && Array.isArray(contentObj.athleteIds)) {
+    for (const athleteId of contentObj.athleteIds) {
+      if (athleteId != null && !Number.isNaN(Number(athleteId))) ids.add(Number(athleteId));
+    }
+  }
+  return ids;
+}
+
+async function fetchAthletes(athleteIds){
+  if (!athleteIds.size) return [];
+  const rows = await dbAll(
+    `SELECT id, name, event, best_time, group_name, athlete_events FROM athletes WHERE id IN (${Array.from(athleteIds).map(() => '?').join(',')}) ORDER BY id ASC`,
+    Array.from(athleteIds)
+  );
+  return rows.map(normalizeAthlete);
+}
+
+function formatAthleteContext(athletes){
+  if (!athletes.length) return '割り当て選手なし';
+  return athletes.map((athlete, index) => {
+    const bestSummary = athlete.best_times && athlete.best_times.length
+      ? athlete.best_times.map((entry) => `${entry.event}:${entry.time}`).join(', ')
+      : (athlete.best_time || '-');
+    return `${index + 1}. ${athlete.name} / group:${athlete.group_name || '-'} / primary:${athlete.primary_event || '-'} / bests:${bestSummary}`;
+  }).join('\n');
 }
 
 function normalizePracticeItems(items){
@@ -662,19 +710,8 @@ function normalizeAthlete(row){
 
 async function hydratePractice(row){
   const practice = { ...row, parsed: parsePracticeContent(row.content) };
-  const athleteIds = new Set();
-  if (practice.athlete_id) athleteIds.add(Number(practice.athlete_id));
-  if (practice.parsed && Array.isArray(practice.parsed.athleteIds)) {
-    for (const athleteId of practice.parsed.athleteIds) {
-      if (!Number.isNaN(Number(athleteId))) athleteIds.add(Number(athleteId));
-    }
-  }
-  practice.assignedAthletes = athleteIds.size
-    ? (await dbAll(
-        `SELECT id, name, event, best_time, group_name, athlete_events FROM athletes WHERE id IN (${Array.from(athleteIds).map(() => '?').join(',')}) ORDER BY id ASC`,
-        Array.from(athleteIds)
-      )).map(normalizeAthlete)
-    : [];
+  const athleteIds = collectAthleteIds(practice, practice.parsed);
+  practice.assignedAthletes = await fetchAthletes(athleteIds);
   practice.assignedTeams = Array.from(new Set(practice.assignedAthletes.map((athlete) => athlete.group_name || '未設定')));
   practice.comments = await dbAll('SELECT * FROM comments WHERE practice_id = ? ORDER BY id ASC', [practice.id]);
   return practice;
@@ -847,50 +884,11 @@ app.post('/api/comment', async (req, res) => {
     if(!pRows || pRows.length === 0) return res.status(404).json({ error: 'practice not found' });
     const practice = pRows[0];
 
-    // Parse stored content (may be JSON string) and convert to readable text
     const contentObj = parsePracticeContent(practice.content);
-    let contentText = '';
-    if (typeof contentObj === 'string') {
-      contentText = contentObj;
-    } else if (contentObj && Array.isArray(contentObj.items)) {
-      contentText = contentObj.items.map((it, idx) => {
-        const parts = [];
-        if (it.type) parts.push(`${it.type}`);
-        if (it.stroke) parts.push(`stroke:${it.stroke}`);
-        if (it.distance !== undefined && it.distance !== null) parts.push(`${it.distance}m`);
-        if (it.reps) parts.push(`x${it.reps}`);
-        if (it.rest) parts.push(`rest:${it.rest}`);
-        if (it.note) parts.push(`note:${it.note}`);
-        return `${idx+1}. ${parts.join(' ')}`;
-      }).join('\n');
-    } else {
-      try{ contentText = JSON.stringify(contentObj, null, 2); }catch(e){ contentText = String(contentObj); }
-    }
-
-    const athleteIds = new Set();
-    if(practice.athlete_id) athleteIds.add(Number(practice.athlete_id));
-    if(contentObj && Array.isArray(contentObj.athleteIds)){
-      for(const athleteId of contentObj.athleteIds){
-        if(athleteId !== null && athleteId !== undefined && !Number.isNaN(Number(athleteId))){
-          athleteIds.add(Number(athleteId));
-        }
-      }
-    }
-    const assignedAthletes = athleteIds.size
-      ? await dbAll(
-          `SELECT id, name, event, best_time, group_name, athlete_events FROM athletes WHERE id IN (${Array.from(athleteIds).map(()=>'?').join(',')}) ORDER BY id ASC`,
-          Array.from(athleteIds)
-        )
-      : [];
-    const normalizedAssignedAthletes = assignedAthletes.map(normalizeAthlete);
-    const athleteContext = assignedAthletes.length
-      ? normalizedAssignedAthletes.map((athlete, index) => {
-          const bestSummary = athlete.best_times && athlete.best_times.length
-            ? athlete.best_times.map((entry) => `${entry.event}:${entry.time}`).join(', ')
-            : (athlete.best_time || '-');
-          return `${index + 1}. ${athlete.name} / group:${athlete.group_name || '-'} / primary:${athlete.primary_event || '-'} / bests:${bestSummary}`;
-        }).join('\n')
-      : '割り当て選手なし';
+    const contentText = buildContentText(contentObj);
+    const athleteIds = collectAthleteIds(practice, contentObj);
+    const assignedAthletes = await fetchAthletes(athleteIds);
+    const athleteContext = formatAthleteContext(assignedAthletes);
 
     const prev = await dbAll('SELECT role, content FROM comments WHERE practice_id = ? ORDER BY id ASC', [practiceId]);
     const messages = buildCoachMessages(practice, athleteContext, contentText, prev, contentObj);
@@ -920,49 +918,10 @@ app.post('/api/practice/:id/revision', async (req, res) => {
     const practice = pRows[0];
 
     const contentObj = parsePracticeContent(practice.content);
-    let contentText = '';
-    if (typeof contentObj === 'string') {
-      contentText = contentObj;
-    } else if (contentObj && Array.isArray(contentObj.items)) {
-      contentText = contentObj.items.map((it, idx) => {
-        const parts = [];
-        if (it.type) parts.push(`${it.type}`);
-        if (it.stroke) parts.push(`stroke:${it.stroke}`);
-        if (it.distance !== undefined && it.distance !== null) parts.push(`${it.distance}m`);
-        if (it.sets) parts.push(`sets:${it.sets}`);
-        if (it.reps) parts.push(`x${it.reps}`);
-        if (it.rest) parts.push(`rest:${it.rest}`);
-        if (it.note) parts.push(`note:${it.note}`);
-        return `${idx + 1}. ${parts.join(' ')}`;
-      }).join('\n');
-    } else {
-      try{ contentText = JSON.stringify(contentObj, null, 2); }catch(e){ contentText = String(contentObj); }
-    }
-
-    const athleteIds = new Set();
-    if(practice.athlete_id) athleteIds.add(Number(practice.athlete_id));
-    if(contentObj && Array.isArray(contentObj.athleteIds)){
-      for(const athleteId of contentObj.athleteIds){
-        if(athleteId !== null && athleteId !== undefined && !Number.isNaN(Number(athleteId))){
-          athleteIds.add(Number(athleteId));
-        }
-      }
-    }
-    const assignedAthletes = athleteIds.size
-      ? await dbAll(
-          `SELECT id, name, event, best_time, group_name, athlete_events FROM athletes WHERE id IN (${Array.from(athleteIds).map(()=>'?').join(',')}) ORDER BY id ASC`,
-          Array.from(athleteIds)
-        )
-      : [];
-    const normalizedAssignedAthletes = assignedAthletes.map(normalizeAthlete);
-    const athleteContext = assignedAthletes.length
-      ? normalizedAssignedAthletes.map((athlete, index) => {
-          const bestSummary = athlete.best_times && athlete.best_times.length
-            ? athlete.best_times.map((entry) => `${entry.event}:${entry.time}`).join(', ')
-            : (athlete.best_time || '-');
-          return `${index + 1}. ${athlete.name} / group:${athlete.group_name || '-'} / primary:${athlete.primary_event || '-'} / bests:${bestSummary}`;
-        }).join('\n')
-      : '割り当て選手なし';
+    const contentText = buildContentText(contentObj);
+    const athleteIds = collectAthleteIds(practice, contentObj);
+    const assignedAthletes = await fetchAthletes(athleteIds);
+    const athleteContext = formatAthleteContext(assignedAthletes);
 
     const prev = await dbAll('SELECT role, content FROM comments WHERE practice_id = ? ORDER BY id ASC', [id]);
     const settings = await getAISettings(true);
@@ -1020,49 +979,10 @@ app.post('/api/practice/:id/chat', async (req, res) => {
     const practice = pRows[0];
 
     const contentObj = parsePracticeContent(practice.content);
-    let contentText = '';
-    if (typeof contentObj === 'string') {
-      contentText = contentObj;
-    } else if (contentObj && Array.isArray(contentObj.items)) {
-      contentText = contentObj.items.map((it, idx) => {
-        const parts = [];
-        if (it.type) parts.push(`${it.type}`);
-        if (it.stroke) parts.push(`stroke:${it.stroke}`);
-        if (it.distance !== undefined && it.distance !== null) parts.push(`${it.distance}m`);
-        if (it.sets) parts.push(`sets:${it.sets}`);
-        if (it.reps) parts.push(`x${it.reps}`);
-        if (it.rest) parts.push(`rest:${it.rest}`);
-        if (it.note) parts.push(`note:${it.note}`);
-        return `${idx + 1}. ${parts.join(' ')}`;
-      }).join('\n');
-    } else {
-      try{ contentText = JSON.stringify(contentObj, null, 2); }catch(e){ contentText = String(contentObj); }
-    }
-
-    const athleteIds = new Set();
-    if(practice.athlete_id) athleteIds.add(Number(practice.athlete_id));
-    if(contentObj && Array.isArray(contentObj.athleteIds)){
-      for(const athleteId of contentObj.athleteIds){
-        if(athleteId !== null && athleteId !== undefined && !Number.isNaN(Number(athleteId))){
-          athleteIds.add(Number(athleteId));
-        }
-      }
-    }
-    const assignedAthletes = athleteIds.size
-      ? await dbAll(
-          `SELECT id, name, event, best_time, group_name, athlete_events FROM athletes WHERE id IN (${Array.from(athleteIds).map(()=>'?').join(',')}) ORDER BY id ASC`,
-          Array.from(athleteIds)
-        )
-      : [];
-    const normalizedAssignedAthletes = assignedAthletes.map(normalizeAthlete);
-    const athleteContext = assignedAthletes.length
-      ? normalizedAssignedAthletes.map((athlete, index) => {
-          const bestSummary = athlete.best_times && athlete.best_times.length
-            ? athlete.best_times.map((entry) => `${entry.event}:${entry.time}`).join(', ')
-            : (athlete.best_time || '-');
-          return `${index + 1}. ${athlete.name} / group:${athlete.group_name || '-'} / primary:${athlete.primary_event || '-'} / bests:${bestSummary}`;
-        }).join('\n')
-      : '割り当て選手なし';
+    const contentText = buildContentText(contentObj);
+    const athleteIds = collectAthleteIds(practice, contentObj);
+    const assignedAthletes = await fetchAthletes(athleteIds);
+    const athleteContext = formatAthleteContext(assignedAthletes);
 
     const userMessage = String(message).trim();
     await dbRun(
