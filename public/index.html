@@ -282,6 +282,35 @@
         padding-top:12px;border-top:1px solid #e0e9f8;background:rgba(255,255,255,0.95)
       }
       .chat-input-shell textarea{min-height:120px;resize:vertical}
+      .revision-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+      .diff-panel{
+        margin-top:12px;border:1px solid #d6e2f5;border-radius:14px;background:#fff;overflow:hidden
+      }
+      .diff-panel-head{
+        display:flex;align-items:center;justify-content:space-between;gap:12px;
+        padding:10px 14px;background:#eef4ff;border-bottom:1px solid #d6e2f5;font-weight:700;font-size:13px
+      }
+      .diff-panel-head .diff-actions{display:flex;gap:8px}
+      .diff-panel-body{max-height:60vh;overflow:auto;padding:8px;background:#fafcff}
+      .diff-row{
+        display:grid;gap:6px;padding:8px 10px;border-radius:8px;margin-bottom:6px;
+        font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.5;
+        border:1px solid transparent
+      }
+      .diff-row.unchanged{background:#f5f7fb;color:#445}
+      .diff-row.added{background:#e6ffed;border-color:#a6e9b4;color:#0c4521}
+      .diff-row.removed{background:#ffeef0;border-color:#f3b2b8;color:#7a0d18}
+      .diff-row.modified{background:#fffbe6;border-color:#f1d97a;color:#3a2d00}
+      .diff-row .diff-marker{font-weight:800;margin-right:6px}
+      .diff-row.added .diff-marker{color:#1b8c39}
+      .diff-row.removed .diff-marker{color:#c03046}
+      .diff-row .diff-cells{display:flex;flex-wrap:wrap;gap:10px}
+      .diff-cell{display:inline-flex;align-items:center;gap:4px}
+      .diff-cell-label{font-weight:700;color:#566;font-size:11px}
+      .diff-old{background:#ffd6d9;color:#7a0d18;text-decoration:line-through;padding:0 4px;border-radius:4px}
+      .diff-new{background:#c3f3cf;color:#0c4521;padding:0 4px;border-radius:4px}
+      .diff-arrow{color:#888;margin:0 2px}
+      .diff-comment{padding:10px 14px;border-bottom:1px solid #d6e2f5;background:#fff;color:#334;font-size:13px;line-height:1.6}
       .ai-chat-pane{
         max-height:calc(100vh - 390px);min-height:240px;overflow:auto;padding-right:4px
       }
@@ -423,6 +452,9 @@
           const editingPracticeId = ref(null);
           const selectedBestEvent = ref('');
           const chatInput = ref('');
+          const revisionDiff = ref(null);
+          const revisionComment = ref('');
+          const isRequestingRevision = ref(false);
           const practiceItems = ref([
             { type: 'Warmup', stroke: 'Fr', distance: 200, sets: 1, reps: 1, rest: '', note: '' }
           ]);
@@ -1349,6 +1381,91 @@
             sendPracticeChatMessage();
           }
 
+          function normalizeForDiff(item){
+            return {
+              type: String(item && item.type != null ? item.type : ''),
+              stroke: String(item && item.stroke != null ? item.stroke : ''),
+              distance: item && item.distance != null && item.distance !== '' ? Number(item.distance) : '',
+              sets: item && item.sets != null && item.sets !== '' ? Number(item.sets) : '',
+              reps: item && item.reps != null && item.reps !== '' ? Number(item.reps) : '',
+              rest: String(item && item.rest != null ? item.rest : ''),
+              note: String(item && item.note != null ? item.note : '')
+            };
+          }
+
+          function computeItemDiff(oldItems, newItems){
+            const oldArr = Array.isArray(oldItems) ? oldItems.map(normalizeForDiff) : [];
+            const newArr = Array.isArray(newItems) ? newItems.map(normalizeForDiff) : [];
+            const len = Math.max(oldArr.length, newArr.length);
+            const rows = [];
+            for (let i = 0; i < len; i++) {
+              const o = oldArr[i];
+              const n = newArr[i];
+              if (o && !n) { rows.push({ kind: 'removed', index: i, old: o }); continue; }
+              if (!o && n) { rows.push({ kind: 'added', index: i, new: n }); continue; }
+              const fields = [];
+              for (const col of MENU_COLUMN_DEFS) {
+                if (String(o[col.key]) !== String(n[col.key])) {
+                  fields.push({ key: col.key, label: col.label, old: o[col.key], new: n[col.key] });
+                }
+              }
+              if (fields.length === 0) rows.push({ kind: 'unchanged', index: i, old: o, new: n });
+              else rows.push({ kind: 'modified', index: i, old: o, new: n, fields });
+            }
+            return rows;
+          }
+
+          async function requestRevision(){
+            if (!currentPractice.value || !currentPractice.value.id) return alert('対象の練習を選択してください');
+            isRequestingRevision.value = true;
+            generationMessage.value = '';
+            try{
+              const data = await fetchJson('/api/practice/' + currentPractice.value.id + '/revision', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+              });
+              const revisedItems = data && data.revisedPractice && Array.isArray(data.revisedPractice.items)
+                ? data.revisedPractice.items : [];
+              const rows = computeItemDiff(practiceItems.value, revisedItems);
+              revisionDiff.value = { rows, revisedItems };
+              revisionComment.value = data && data.comment ? String(data.comment) : '';
+              generationMessage.value = '修正案を生成しました。差分を確認してください。';
+            }catch(error){
+              generationMessage.value = String(error.message || error);
+            } finally {
+              isRequestingRevision.value = false;
+            }
+          }
+
+          function applyRevision(){
+            if (!revisionDiff.value) return;
+            const items = revisionDiff.value.revisedItems || [];
+            practiceItems.value = items.map((item) => ({
+              type: item.type || 'Swim',
+              stroke: item.stroke || 'Fr',
+              distance: item.distance != null && item.distance !== '' ? Number(item.distance) : 0,
+              sets: item.sets != null && item.sets !== '' ? Number(item.sets) : 1,
+              reps: item.reps != null && item.reps !== '' ? Number(item.reps) : 1,
+              rest: item.rest != null ? String(item.rest) : '',
+              note: item.note != null ? String(item.note) : ''
+            }));
+            revisionDiff.value = null;
+            revisionComment.value = '';
+            generationMessage.value = '修正案を反映しました。「この練習を更新」で保存してください。';
+          }
+
+          function discardRevision(){
+            revisionDiff.value = null;
+            revisionComment.value = '';
+            generationMessage.value = '修正案を破棄しました。';
+          }
+
+          function diffCellDisplay(value){
+            if (value === '' || value == null) return '(空)';
+            return String(value);
+          }
+
           async function clearPracticeChatHistory(){
             if (!currentPractice.value || !currentPractice.value.id) return alert('対象の練習を選択してください');
             const confirmed = window.confirm('この練習のAIチャット履歴を削除します。よろしいですか？');
@@ -1459,6 +1576,14 @@
             sendPracticeChatMessage,
             submitChatOnCtrlEnter,
             clearPracticeChatHistory,
+            revisionDiff,
+            revisionComment,
+            isRequestingRevision,
+            requestRevision,
+            applyRevision,
+            discardRevision,
+            diffCellDisplay,
+            MENU_COLUMN_DEFS,
             startCreatePractice,
             startEditPractice,
             startCreateAthlete,
@@ -2020,7 +2145,72 @@
                   <span class="spinner"></span>
                   <span>AIが返信を作成中です...</span>
                 </div>
+                <div v-if="isRequestingRevision" class="loading-row">
+                  <span class="spinner"></span>
+                  <span>修正案を生成中です...</span>
+                </div>
                 <div v-if="generationMessage" class="status-pill">{{ generationMessage }}</div>
+
+                <div v-if="revisionDiff" class="diff-panel">
+                  <div class="diff-panel-head">
+                    <span>AI 修正案の差分（緑=追加 / 赤=削除 / 黄=変更）</span>
+                    <div class="diff-actions">
+                      <button class="ghost-btn" @click="discardRevision">破棄</button>
+                      <button class="primary-btn" @click="applyRevision">適用</button>
+                    </div>
+                  </div>
+                  <div v-if="revisionComment" class="diff-comment">{{ revisionComment }}</div>
+                  <div class="diff-panel-body">
+                    <template v-for="(row, idx) in revisionDiff.rows" :key="idx">
+                      <div v-if="row.kind === 'unchanged'" class="diff-row unchanged">
+                        <div><span class="diff-marker"> </span>#{{ row.index + 1 }} 変更なし</div>
+                        <div class="diff-cells">
+                          <span v-for="col in MENU_COLUMN_DEFS" :key="col.key" class="diff-cell">
+                            <span class="diff-cell-label">{{ col.label }}:</span>{{ diffCellDisplay(row.old[col.key]) }}
+                          </span>
+                        </div>
+                      </div>
+                      <div v-else-if="row.kind === 'added'" class="diff-row added">
+                        <div><span class="diff-marker">+</span>#{{ row.index + 1 }} 追加</div>
+                        <div class="diff-cells">
+                          <span v-for="col in MENU_COLUMN_DEFS" :key="col.key" class="diff-cell">
+                            <span class="diff-cell-label">{{ col.label }}:</span>
+                            <span class="diff-new">{{ diffCellDisplay(row.new[col.key]) }}</span>
+                          </span>
+                        </div>
+                      </div>
+                      <div v-else-if="row.kind === 'removed'" class="diff-row removed">
+                        <div><span class="diff-marker">-</span>#{{ row.index + 1 }} 削除</div>
+                        <div class="diff-cells">
+                          <span v-for="col in MENU_COLUMN_DEFS" :key="col.key" class="diff-cell">
+                            <span class="diff-cell-label">{{ col.label }}:</span>
+                            <span class="diff-old">{{ diffCellDisplay(row.old[col.key]) }}</span>
+                          </span>
+                        </div>
+                      </div>
+                      <div v-else class="diff-row modified">
+                        <div><span class="diff-marker">~</span>#{{ row.index + 1 }} 変更</div>
+                        <div class="diff-cells">
+                          <span v-for="col in MENU_COLUMN_DEFS" :key="col.key" class="diff-cell">
+                            <span class="diff-cell-label">{{ col.label }}:</span>
+                            <template v-if="row.fields.find(f => f.key === col.key)">
+                              <span class="diff-old">{{ diffCellDisplay(row.old[col.key]) }}</span>
+                              <span class="diff-arrow">→</span>
+                              <span class="diff-new">{{ diffCellDisplay(row.new[col.key]) }}</span>
+                            </template>
+                            <template v-else>{{ diffCellDisplay(row.old[col.key]) }}</template>
+                          </span>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+
+                <div class="revision-actions">
+                  <button class="ghost-btn" @click="requestRevision" :disabled="isGenerating || isRequestingRevision">
+                    AIに修正案を提案してもらう
+                  </button>
+                </div>
                 <div class="chat-input-shell">
                   <div class="form-row">
                     <label>メッセージ</label>
